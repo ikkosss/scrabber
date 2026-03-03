@@ -3,11 +3,9 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- Simple I-beam cursor -->
     <path
-        android:fillColor="#D32F2F"
-        android:pathData="M6,5h4v14H6z" />
-    <path
-        android:fillColor="#D32F2F"
-        android:pathData="M14,5h4v14h-4z" />
+        android:fillColor="#000000"
+        android:pathData="M9,4h6v2h-2v12h2v2H9v-2h2V6H9z" />
 </vector>
 

@@ -56,26 +56,15 @@ class MainActivity : AppCompatActivity() {
     private var currentMainUrl: String? = null
     private var pendingZipExportAfterFolderPick: Boolean = false
     private var isLocked: Boolean = false
-
-    private val exportJsonLauncher =
-        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
-            if (uri == null) return@registerForActivityResult
-            val dir = repo.getLastSessionDir()
-            if (dir == null) {
-                toast("No session to export yet. Press Start first.")
-                return@registerForActivityResult
-            }
-            try {
-                exportWriter.writeExportJson(this, dir, uri)
-                toast("Exported JSON: $uri")
-            } catch (t: Throwable) {
-                toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
-            }
-        }
+    private var stopExportOfferHandledSessionId: String? = null
 
     private val pickExportFolderLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-            if (uri == null) return@registerForActivityResult
+            if (uri == null) {
+                // If we were waiting to export after stop, cancellation means "no retry" for this session.
+                if (pendingZipExportAfterFolderPick) pendingZipExportAfterFolderPick = false
+                return@registerForActivityResult
+            }
             try {
                 val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 contentResolver.takePersistableUriPermission(uri, flags)
@@ -247,23 +236,6 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        binding.exportButton.setOnClickListener {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("Export")
-                .setItems(arrayOf("Export ZIP (to chosen folder)", "Choose export folder", "Export JSON (choose file)")) { _, which ->
-                    when (which) {
-                        0 -> exportZipToChosenFolder()
-                        1 -> pickExportFolderLauncher.launch(null)
-                        2 -> {
-                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                            exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
-                        }
-                    }
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-        }
-
         if (savedInstanceState == null) {
             val startUrl = "https://google.ru"
             binding.urlEditText.setText(startUrl)
@@ -391,6 +363,9 @@ class MainActivity : AppCompatActivity() {
     private fun setAddressModeVisible(visible: Boolean) {
         binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
         binding.buttonsRow.visibility = if (visible) View.GONE else View.VISIBLE
+        binding.modeToggleButton.setImageResource(
+            if (visible) R.drawable.ic_toggle_grid else R.drawable.ic_toggle_cursor,
+        )
 
         val imm = getSystemService(InputMethodManager::class.java)
         if (visible) {
@@ -430,11 +405,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopRecording(withPrompt: Boolean) {
         val wasStopped = repo.getRecordingState() == LogRepository.RecordingState.STOPPED
+        val sessionId = repo.getMeta()?.sessionId
         repo.stopSession()
         if (!wasStopped) toast("Stopped")
         syncRecordingUi()
 
         if (!withPrompt || wasStopped) return
+        if (sessionId != null && sessionId == stopExportOfferHandledSessionId) return
+        stopExportOfferHandledSessionId = sessionId
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.export_after_stop_title))
             .setMessage(getString(R.string.export_after_stop_msg))
