@@ -22,7 +22,6 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import android.os.Message
 import android.webkit.WebStorage
 import com.google.android.material.color.MaterialColors
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
@@ -136,9 +135,9 @@ class MainActivity : AppCompatActivity() {
             // Some sites block Android WebView by UA tokens ("wv", "Version/4.0").
             userAgentString = sanitizeUserAgent(userAgentString)
 
-            // Compatibility toggles for bank pages.
-            javaScriptCanOpenWindowsAutomatically = true
-            setSupportMultipleWindows(true)
+            // Keep single-window behavior; multi-window often breaks bank pages (infinite "Loading").
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
             useWideViewPort = true
             loadWithOverviewMode = true
         }
@@ -148,45 +147,6 @@ class MainActivity : AppCompatActivity() {
         binding.webView.webChromeClient = object : WebChromeClient() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 // Keep minimal UI; title is stored on HTML snapshot capture.
-            }
-
-            override fun onCreateWindow(
-                view: WebView,
-                isDialog: Boolean,
-                isUserGesture: Boolean,
-                resultMsg: Message,
-            ): Boolean {
-                // Many banking pages use target="_blank"/window.open.
-                // Create a temporary WebView to capture the URL, then load it in the main WebView.
-                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-                val popup = WebView(this@MainActivity).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
-                            val url = request.url.toString()
-                            view.post { view.loadUrl(url) }
-                            try {
-                                v.stopLoading()
-                                v.destroy()
-                            } catch (_: Throwable) {
-                            }
-                            return true
-                        }
-
-                        override fun onPageStarted(v: WebView, url: String, favicon: android.graphics.Bitmap?) {
-                            view.post { view.loadUrl(url) }
-                            try {
-                                v.stopLoading()
-                                v.destroy()
-                            } catch (_: Throwable) {
-                            }
-                        }
-                    }
-                }
-                transport.webView = popup
-                resultMsg.sendToTarget()
-                return true
             }
         }
 
