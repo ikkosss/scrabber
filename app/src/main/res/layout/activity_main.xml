@@ -32,8 +32,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/backButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_skip_previous"
                     android:contentDescription="@string/cd_back" />
@@ -41,8 +42,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/forwardButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_skip_next"
                     android:contentDescription="@string/cd_forward" />
@@ -50,8 +52,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/reloadButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_refresh"
                     android:contentDescription="@string/cd_reload" />
@@ -59,8 +62,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/recordPauseButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_record"
                     android:contentDescription="@string/cd_record_pause" />
@@ -68,8 +72,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/stopButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_stop"
                     android:contentDescription="@string/cd_stop"
@@ -79,8 +84,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/timeWarpButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_timer_clock"
                     android:contentDescription="@string/simulate_time" />
@@ -88,8 +94,9 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/modeToggleButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="44dp"
+                    android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:layout_weight="1"
                     android:src="@drawable/ic_text_cursor"
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"
@@ -121,38 +128,45 @@
             android:layout_height="44dp"
             android:visibility="gone">
 
-            <androidx.appcompat.widget.AppCompatAutoCompleteTextView
-                android:id="@+id/urlEditText"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="3dp"
-                android:background="@drawable/bsl_address_bg"
-                android:gravity="center_vertical"
-                android:hint="@string/url_hint"
-                android:includeFontPadding="false"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:maxLines="1"
-                android:overScrollMode="never"
-                android:paddingHorizontal="12dp"
-                android:paddingEnd="56dp"
-                android:scrollHorizontally="true"
-                android:scrollbars="none"
-                android:singleLine="true"
-                android:completionThreshold="1"
-                android:dropDownHeight="wrap_content"
-                android:textSize="14sp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/addressModeToggleButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_gravity="end"
-                android:background="@drawable/bg_media_button"
-                android:src="@drawable/ic_toggle_grid"
-                android:padding="8dp"
-                android:scaleType="fitCenter"
-                android:contentDescription="@string/cd_toggle_bar" />
+                <androidx.appcompat.widget.AppCompatAutoCompleteTextView
+                    android:id="@+id/urlEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="6"
+                    android:layout_marginEnd="3dp"
+                    android:background="@drawable/bsl_address_bg"
+                    android:gravity="center_vertical"
+                    android:hint="@string/url_hint"
+                    android:includeFontPadding="false"
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:maxLines="1"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="12dp"
+                    android:scrollHorizontally="true"
+                    android:scrollbars="none"
+                    android:singleLine="true"
+                    android:completionThreshold="1"
+                    android:dropDownHeight="wrap_content"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/addressModeToggleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_media_button"
+                    android:src="@drawable/ic_toggle_grid"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@string/cd_toggle_bar" />
+            </LinearLayout>
         </FrameLayout>
     </FrameLayout>
 
