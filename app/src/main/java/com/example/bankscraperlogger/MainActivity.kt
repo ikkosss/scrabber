@@ -192,7 +192,18 @@ class MainActivity : AppCompatActivity() {
 
         binding.webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val url = request.url.toString()
+                val uri = request.url
+                val url = uri.toString()
+                val scheme = uri.scheme?.lowercase(Locale.US)
+
+                // Don't let WebView try to "load" non-http(s) schemes; many sites use deep links and
+                // loading them in WebView results in an infinite "Loading" overlay.
+                if (scheme != null && scheme != "http" && scheme != "https") {
+                    val handled = handleExternalScheme(url)
+                    if (repo.isRecording()) repo.logVisitedUrl(url, "external_scheme:$scheme")
+                    return handled
+                }
+
                 binding.urlEditText.setText(url)
                 if (repo.isRecording()) repo.logVisitedUrl(url, "shouldOverrideUrlLoading")
                 return false
@@ -868,6 +879,36 @@ class MainActivity : AppCompatActivity() {
         toast(getString(R.string.toast_site_cleared, host, removedCookies, removedHistory))
         // Reload to ensure user sees logged-out state.
         binding.webView.postDelayed({ binding.webView.reload() }, 250)
+    }
+
+    private fun handleExternalScheme(rawUrl: String): Boolean {
+        return try {
+            if (rawUrl.startsWith("intent:", ignoreCase = true)) {
+                val intent = Intent.parseUri(rawUrl, Intent.URI_INTENT_SCHEME)
+                val pm = packageManager
+                if (intent.resolveActivity(pm) != null) {
+                    startActivity(intent)
+                    true
+                } else {
+                    val fallback = intent.getStringExtra("browser_fallback_url")
+                    if (!fallback.isNullOrBlank()) {
+                        binding.webView.loadUrl(fallback)
+                        true
+                    } else {
+                        toast(getString(R.string.toast_download_failed, "No app for intent"))
+                        true
+                    }
+                }
+            } else {
+                val uri = Uri.parse(rawUrl)
+                startActivity(Intent(Intent.ACTION_VIEW, uri))
+                true
+            }
+        } catch (_: Throwable) {
+            // If nothing can handle it, just ignore it.
+            toast(getString(R.string.toast_download_failed, "Unsupported link"))
+            true
+        }
     }
 
     private fun toast(message: String) {
