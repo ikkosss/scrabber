@@ -17,6 +17,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.appcompat.widget.AppCompatImageButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
@@ -24,7 +25,9 @@ import com.example.bankscraperlogger.export.ExportFolderManager
 import com.example.bankscraperlogger.export.ExportWriter
 import com.example.bankscraperlogger.export.ZipToFolderExporter
 import com.example.bankscraperlogger.logging.LogRepository
+import com.example.bankscraperlogger.security.AppLockStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -43,9 +46,11 @@ class MainActivity : AppCompatActivity() {
     private val exportWriter = ExportWriter()
     private lateinit var exportFolderManager: ExportFolderManager
     private lateinit var zipToFolderExporter: ZipToFolderExporter
+    private lateinit var appLock: AppLockStore
 
     private var currentMainUrl: String? = null
     private var pendingZipExportAfterFolderPick: Boolean = false
+    private var isLocked: Boolean = false
 
     private val exportJsonLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
@@ -89,16 +94,18 @@ class MainActivity : AppCompatActivity() {
                 val sample = repo.drainActivitySample()
                 // Weight pages higher (HTML snapshots are the “heavy” writes).
                 val score = sample.events * 1.0 + sample.pages * 6.0 + (sample.bytes / 2048.0)
-                (score / 18.0).toFloat().coerceIn(0f, 1f)
+                val dyn = (score / 14.0).toFloat().coerceIn(0f, 1f)
+                // Base movement while collecting, even if traffic is low.
+                (0.22f + 0.78f * dyn).coerceIn(0f, 1f)
             } else {
                 0f
             }
 
             // Smooth to avoid jitter.
-            intensityEma = (0.75f * intensityEma + 0.25f * target).coerceIn(0f, 1f)
+            intensityEma = (0.70f * intensityEma + 0.30f * target).coerceIn(0f, 1f)
             binding.intensityView.setIntensity(intensityEma)
 
-            intensityHandler.postDelayed(this, 250)
+            intensityHandler.postDelayed(this, 120)
         }
     }
 
@@ -111,6 +118,8 @@ class MainActivity : AppCompatActivity() {
         repo = LogRepository(applicationContext)
         exportFolderManager = ExportFolderManager(this)
         zipToFolderExporter = ZipToFolderExporter(this, exportWriter)
+        appLock = AppLockStore(this)
+        setupLockUi()
 
         WebView.setWebContentsDebuggingEnabled(true)
 
@@ -208,13 +217,13 @@ class MainActivity : AppCompatActivity() {
         binding.collectToggleButton.setOnClickListener {
             if (repo.isCollecting()) {
                 repo.stopSession()
-                binding.collectToggleButton.setIconResource(android.R.drawable.ic_media_play)
+                binding.collectToggleButton.setImageResource(android.R.drawable.ic_media_play)
                 toast("Collection stopped")
             } else {
                 val ua = binding.webView.settings.userAgentString ?: "unknown"
                 val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
                 repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
-                binding.collectToggleButton.setIconResource(android.R.drawable.ic_media_pause)
+                binding.collectToggleButton.setImageResource(android.R.drawable.ic_media_pause)
                 toast("Collection started")
                 fetchAndStoreExternalIp()
             }
@@ -222,6 +231,11 @@ class MainActivity : AppCompatActivity() {
 
         binding.addressButton.setOnClickListener {
             setUrlBarVisible(binding.urlInputLayout.visibility != View.VISIBLE)
+        }
+
+        binding.addressButton.setOnLongClickListener {
+            showSecurityMenu()
+            true
         }
 
         binding.exportButton.setOnClickListener {
@@ -248,6 +262,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         intensityHandler.post(intensityTicker)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        appLock.markBackgroundNow()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (appLock.shouldLock()) {
+            showLockOverlay()
+        }
     }
 
     override fun onDestroy() {
@@ -336,6 +362,91 @@ class MainActivity : AppCompatActivity() {
             imm?.hideSoftInputFromWindow(binding.urlEditText.windowToken, 0)
             binding.webView.requestFocus()
         }
+    }
+
+    private fun showLockOverlay() {
+        isLocked = true
+        setUrlBarVisible(false)
+        binding.lockOverlay.visibility = View.VISIBLE
+        binding.pinEditText.setText("")
+        binding.pinInputLayout.error = null
+        binding.pinEditText.requestFocus()
+    }
+
+    private fun hideLockOverlay() {
+        isLocked = false
+        binding.lockOverlay.visibility = View.GONE
+        binding.webView.requestFocus()
+    }
+
+    private fun setupLockUi() {
+        binding.unlockButton.setOnClickListener {
+            val pin = binding.pinEditText.text?.toString().orEmpty()
+            if (appLock.verifyPin(pin)) {
+                appLock.markUnlockedNow()
+                binding.pinInputLayout.error = null
+                hideLockOverlay()
+            } else {
+                binding.pinInputLayout.error = getString(R.string.wrong_pin)
+            }
+        }
+
+        binding.simulateTimeButton.setOnClickListener {
+            appLock.simulateAway(hours = 1)
+            showLockOverlay()
+        }
+    }
+
+    private fun showSecurityMenu() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.security))
+            .setItems(arrayOf(getString(R.string.set_pin), getString(R.string.disable_pin), getString(R.string.lock_now), getString(R.string.simulate_time))) { _, which ->
+                when (which) {
+                    0 -> showSetPinDialog()
+                    1 -> {
+                        appLock.disable()
+                        toast("PIN disabled")
+                    }
+                    2 -> {
+                        if (!appLock.isEnabled()) {
+                            toast(getString(R.string.pin_not_set))
+                        } else {
+                            showLockOverlay()
+                        }
+                    }
+                    3 -> {
+                        if (!appLock.isEnabled()) {
+                            toast(getString(R.string.pin_not_set))
+                        } else {
+                            appLock.simulateAway(hours = 1)
+                            showLockOverlay()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showSetPinDialog() {
+        val input = TextInputEditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = getString(R.string.pin_hint)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.set_pin))
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val pin = input.text?.toString().orEmpty()
+                if (pin.length !in 4..12) {
+                    toast("PIN must be 4..12 digits")
+                    return@setPositiveButton
+                }
+                appLock.setOrChangePin(pin)
+                toast("PIN set")
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 }
 

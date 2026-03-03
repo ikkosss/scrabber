@@ -15,5 +15,15 @@
     <string name="cd_start_stop">Start/Stop logging</string>
     <string name="cd_export">Export</string>
     <string name="cd_address">Show address bar</string>
+    <string name="lock_title">Unlock</string>
+    <string name="pin_hint">PIN code</string>
+    <string name="unlock">Unlock</string>
+    <string name="simulate_time">+1h (simulate)</string>
+    <string name="security">Security</string>
+    <string name="set_pin">Set / change PIN</string>
+    <string name="disable_pin">Disable PIN</string>
+    <string name="lock_now">Lock now</string>
+    <string name="wrong_pin">Wrong PIN</string>
+    <string name="pin_not_set">Set a PIN first</string>
 </resources>
 

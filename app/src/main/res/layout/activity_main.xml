@@ -7,8 +7,10 @@
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/urlInputLayout"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="40dp"
         android:layout_margin="8dp"
+        app:hintEnabled="false"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
         app:layout_constraintEnd_toStartOf="@id/goButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -16,111 +18,98 @@
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/urlEditText"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:hint="@string/url_hint"
             android:imeOptions="actionGo"
-            android:inputType="textUri" />
+            android:inputType="textUri"
+            android:maxLines="1"
+            android:singleLine="true" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <com.google.android.material.button.MaterialButton
+    <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/goButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        style="@style/Widget.BSL.ToolbarIconButton"
         android:layout_marginEnd="8dp"
         android:layout_marginTop="8dp"
-        android:text="@string/go"
+        android:contentDescription="@string/go"
+        android:src="@android:drawable/ic_menu_view"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <LinearLayout
-        android:id="@+id/navRow"
+    <HorizontalScrollView
+        android:id="@+id/navScroll"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="8dp"
         android:layout_marginTop="6dp"
         android:layout_marginBottom="6dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
+        android:fillViewport="true"
+        android:overScrollMode="never"
+        android:scrollbars="none"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/urlInputLayout"
         app:layout_goneMarginTop="8dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/backButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:id="@+id/navRow"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_back"
-            android:text=""
-            app:icon="@android:drawable/ic_media_previous" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/forwardButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_forward"
-            android:text=""
-            app:icon="@android:drawable/ic_media_next" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/backButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:contentDescription="@string/cd_back"
+                android:src="@android:drawable/ic_media_previous" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/reloadButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_reload"
-            android:text=""
-            app:icon="@android:drawable/ic_popup_sync" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/forwardButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_forward"
+                android:src="@android:drawable/ic_media_next" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/collectToggleButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_start_stop"
-            android:text=""
-            app:icon="@android:drawable/ic_media_play" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/reloadButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_reload"
+                android:src="@android:drawable/ic_popup_sync" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/exportButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_export"
-            android:text=""
-            app:icon="@android:drawable/ic_menu_save" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/collectToggleButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_start_stop"
+                android:src="@android:drawable/ic_media_play" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/addressButton"
-            style="@style/Widget.BSL.IconButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:contentDescription="@string/cd_address"
-            android:text=""
-            app:icon="@android:drawable/ic_menu_edit" />
-    </LinearLayout>
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/exportButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_export"
+                android:src="@android:drawable/ic_menu_save" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/addressButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_address"
+                android:src="@android:drawable/ic_menu_edit" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <com.example.bankscraperlogger.ui.IntensityBarsView
         android:id="@+id/intensityView"
         android:layout_width="0dp"
-        android:layout_height="24dp"
+        android:layout_height="28dp"
         android:layout_marginHorizontal="8dp"
         android:layout_marginBottom="6dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navRow" />
+        app:layout_constraintTop_toBottomOf="@id/navScroll" />
 
     <WebView
         android:id="@+id/webView"
@@ -130,6 +119,83 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/intensityView" />
+
+    <FrameLayout
+        android:id="@+id/lockOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#B3000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_margin="20dp"
+            app:cardCornerRadius="16dp"
+            app:cardUseCompatPadding="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/lockTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/lock_title"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/pinInputLayout"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/pinEditText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="@string/pin_hint"
+                        android:imeOptions="actionDone"
+                        android:inputType="numberPassword"
+                        android:maxLines="1"
+                        android:singleLine="true" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="end"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/simulateTimeButton"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/simulate_time" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/unlockButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/unlock" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 
