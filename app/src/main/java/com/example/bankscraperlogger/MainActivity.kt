@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity() {
                 // Best-effort; some providers may not allow persistable permissions.
             }
             exportFolderManager.setExportFolderUri(uri)
-            toast("Export folder selected")
+            toast(getString(R.string.toast_export_folder_selected))
             if (pendingZipExportAfterFolderPick) {
                 pendingZipExportAfterFolderPick = false
                 exportZipToChosenFolder()
@@ -339,14 +339,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun exportZipToChosenFolder() {
         val dir = repo.getLastSessionDir() ?: run {
-            toast("No session to export yet. Press Start first.")
+            toast(getString(R.string.toast_no_session_to_export))
             return
         }
 
         val folder = exportFolderManager.getExportFolder()
         if (folder == null) {
             pendingZipExportAfterFolderPick = true
-            toast("Choose export folder…")
+            toast(getString(R.string.toast_choose_export_folder))
             pickExportFolderLauncher.launch(null)
             return
         }
@@ -354,9 +354,9 @@ class MainActivity : AppCompatActivity() {
         val bankUrl = repo.getMeta()?.initialUrl ?: currentMainUrl
         try {
             val result = zipToFolderExporter.export(dir, folder, bankUrl)
-            toast("Saved: ${result.displayName}")
+            toast(getString(R.string.toast_saved, result.displayName))
         } catch (t: Throwable) {
-            toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+            toast(getString(R.string.toast_export_failed, t.message ?: t.javaClass.simpleName))
         }
     }
 
@@ -388,16 +388,16 @@ class MainActivity : AppCompatActivity() {
                 val ua = binding.webView.settings.userAgentString ?: "unknown"
                 val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
                 repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
-                toast("Recording started")
+                toast(getString(R.string.toast_recording_started))
                 fetchAndStoreExternalIp()
             }
             LogRepository.RecordingState.RECORDING -> {
                 repo.pauseSession()
-                toast("Paused")
+                toast(getString(R.string.toast_paused))
             }
             LogRepository.RecordingState.PAUSED -> {
                 repo.resumeSession()
-                toast("Resumed")
+                toast(getString(R.string.toast_resumed))
             }
         }
         syncRecordingUi()
@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity() {
         val wasStopped = repo.getRecordingState() == LogRepository.RecordingState.STOPPED
         val sessionId = repo.getMeta()?.sessionId
         repo.stopSession()
-        if (!wasStopped) toast("Stopped")
+        if (!wasStopped) toast(getString(R.string.toast_stopped))
         syncRecordingUi()
 
         if (!withPrompt || wasStopped) return
@@ -490,7 +490,7 @@ class MainActivity : AppCompatActivity() {
                     0 -> showSetPinDialog()
                     1 -> {
                         appLock.disable()
-                        toast("PIN disabled")
+                        toast(getString(R.string.toast_pin_disabled))
                     }
                     2 -> {
                         if (!appLock.isEnabled()) {
@@ -524,11 +524,11 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val pin = input.text?.toString().orEmpty()
                 if (pin.length !in 4..12) {
-                    toast("PIN must be 4..12 digits")
+                    toast(getString(R.string.toast_pin_length))
                     return@setPositiveButton
                 }
                 appLock.setOrChangePin(pin)
-                toast("PIN set")
+                toast(getString(R.string.toast_pin_set))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

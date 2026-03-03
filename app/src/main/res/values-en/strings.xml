@@ -1,0 +1,41 @@
+<resources>
+    <string name="app_name">BankScraperLogger</string>
+    <string name="url_hint">https://example.com</string>
+
+    <string name="cd_back">Back</string>
+    <string name="cd_forward">Forward</string>
+    <string name="cd_reload">Reload</string>
+    <string name="cd_stop">Stop recording</string>
+    <string name="cd_record_pause">Record / Pause / Resume</string>
+    <string name="cd_toggle_bar">Toggle address / buttons</string>
+
+    <string name="export_now">Save ZIP</string>
+    <string name="export_later">Cancel</string>
+    <string name="export_after_stop_title">Recording stopped</string>
+    <string name="export_after_stop_msg">Save the recorded data to a ZIP archive now? If you cancel, you won’t be able to export this session later.</string>
+
+    <string name="lock_title">Unlock</string>
+    <string name="pin_hint">PIN code</string>
+    <string name="unlock">Unlock</string>
+    <string name="simulate_time">+1h (forward)</string>
+    <string name="security">Security</string>
+    <string name="set_pin">Set / change PIN</string>
+    <string name="disable_pin">Disable PIN</string>
+    <string name="lock_now">Lock now</string>
+    <string name="wrong_pin">Wrong PIN</string>
+    <string name="pin_not_set">Set a PIN first</string>
+
+    <string name="toast_export_folder_selected">Export folder selected</string>
+    <string name="toast_no_session_to_export">No session to export yet. Start recording first.</string>
+    <string name="toast_choose_export_folder">Choose export folder…</string>
+    <string name="toast_saved">Saved: %1$s</string>
+    <string name="toast_export_failed">Export failed: %1$s</string>
+    <string name="toast_recording_started">Recording started</string>
+    <string name="toast_paused">Paused</string>
+    <string name="toast_resumed">Resumed</string>
+    <string name="toast_stopped">Stopped</string>
+    <string name="toast_pin_disabled">PIN disabled</string>
+    <string name="toast_pin_length">PIN must be 4..12 digits</string>
+    <string name="toast_pin_set">PIN set</string>
+</resources>
+

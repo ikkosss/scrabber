@@ -1,38 +1,41 @@
 <resources>
     <string name="app_name">BankScraperLogger</string>
-    <string name="url_hint">https://example.com</string>
-    <string name="go">Go</string>
-    <string name="back">Back</string>
-    <string name="forward">Forward</string>
-    <string name="reload">Reload</string>
-    <string name="start_collect">Start</string>
-    <string name="stop_collect">Stop</string>
-    <string name="export">Export</string>
-    <string name="show_address_bar">Address</string>
-    <string name="cd_back">Back</string>
-    <string name="cd_forward">Forward</string>
-    <string name="cd_reload">Reload</string>
-    <string name="cd_start_stop">Start/Stop logging</string>
-    <string name="cd_export">Export</string>
-    <string name="cd_address">Show address bar</string>
-    <string name="cd_toggle_bar">Toggle address / buttons</string>
-    <string name="cd_start">Start recording</string>
-    <string name="cd_pause_resume">Pause/Resume recording</string>
-    <string name="cd_stop">Stop recording</string>
-    <string name="cd_record_pause">Record / Pause / Resume</string>
-    <string name="export_now">Save ZIP</string>
-    <string name="export_later">Cancel</string>
-    <string name="export_after_stop_title">Recording stopped</string>
-    <string name="export_after_stop_msg">Save the recorded data to a ZIP archive now? If you cancel, you won’t be able to export this session later.</string>
-    <string name="lock_title">Unlock</string>
-    <string name="pin_hint">PIN code</string>
-    <string name="unlock">Unlock</string>
-    <string name="simulate_time">+1h (forward)</string>
-    <string name="security">Security</string>
-    <string name="set_pin">Set / change PIN</string>
-    <string name="disable_pin">Disable PIN</string>
-    <string name="lock_now">Lock now</string>
-    <string name="wrong_pin">Wrong PIN</string>
-    <string name="pin_not_set">Set a PIN first</string>
+    <string name="url_hint">Введите адрес или запрос</string>
+
+    <string name="cd_back">Назад</string>
+    <string name="cd_forward">Вперёд</string>
+    <string name="cd_reload">Обновить</string>
+    <string name="cd_stop">Остановить запись</string>
+    <string name="cd_record_pause">Запись / Пауза / Продолжить</string>
+    <string name="cd_toggle_bar">Переключить адрес / кнопки</string>
+
+    <string name="export_now">Сохранить ZIP</string>
+    <string name="export_later">Отмена</string>
+    <string name="export_after_stop_title">Запись остановлена</string>
+    <string name="export_after_stop_msg">Сохранить записанные данные в ZIP-архив сейчас? Если отменить, экспорт этой сессии будет недоступен.</string>
+
+    <string name="lock_title">Разблокировка</string>
+    <string name="pin_hint">PIN-код</string>
+    <string name="unlock">Открыть</string>
+    <string name="simulate_time">+1 час (вперёд)</string>
+    <string name="security">Безопасность</string>
+    <string name="set_pin">Установить / изменить PIN</string>
+    <string name="disable_pin">Отключить PIN</string>
+    <string name="lock_now">Заблокировать сейчас</string>
+    <string name="wrong_pin">Неверный PIN</string>
+    <string name="pin_not_set">Сначала установите PIN</string>
+
+    <string name="toast_export_folder_selected">Папка для экспорта выбрана</string>
+    <string name="toast_no_session_to_export">Нет сессии для экспорта. Сначала запустите запись.</string>
+    <string name="toast_choose_export_folder">Выберите папку для экспорта…</string>
+    <string name="toast_saved">Сохранено: %1$s</string>
+    <string name="toast_export_failed">Ошибка экспорта: %1$s</string>
+    <string name="toast_recording_started">Запись началась</string>
+    <string name="toast_paused">Пауза</string>
+    <string name="toast_resumed">Продолжение</string>
+    <string name="toast_stopped">Остановлено</string>
+    <string name="toast_pin_disabled">PIN отключён</string>
+    <string name="toast_pin_length">PIN должен быть 4–12 цифр</string>
+    <string name="toast_pin_set">PIN установлен</string>
 </resources>
 
