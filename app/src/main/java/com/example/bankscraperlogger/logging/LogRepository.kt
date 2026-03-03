@@ -10,6 +10,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 
 class LogRepository(private val context: Context) {
     private val gson: Gson = GsonBuilder()
@@ -22,11 +23,29 @@ class LogRepository(private val context: Context) {
     private var meta: SessionMeta? = null
     private var sessionDir: File? = null
 
+    private val activityEventsSinceLastSample = AtomicLong(0)
+    private val activityPagesSinceLastSample = AtomicLong(0)
+    private val activityBytesSinceLastSample = AtomicLong(0)
+
     fun isCollecting(): Boolean = collecting
 
     fun getActiveSessionDir(): File? = sessionDir
 
     fun getMeta(): SessionMeta? = meta
+
+    data class ActivitySample(
+        val events: Long,
+        val pages: Long,
+        val bytes: Long,
+    )
+
+    fun drainActivitySample(): ActivitySample {
+        return ActivitySample(
+            events = activityEventsSinceLastSample.getAndSet(0),
+            pages = activityPagesSinceLastSample.getAndSet(0),
+            bytes = activityBytesSinceLastSample.getAndSet(0),
+        )
+    }
 
     fun startNewSession(userAgent: String, initialUrl: String?) {
         val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -132,6 +151,7 @@ class LogRepository(private val context: Context) {
         )
         synchronized(lock) {
             appendJsonl(File(dir, "pages.jsonl"), snapshot)
+            activityPagesSinceLastSample.incrementAndGet()
         }
     }
 
@@ -144,12 +164,15 @@ class LogRepository(private val context: Context) {
         )
         synchronized(lock) {
             appendJsonl(File(dir, "events.jsonl"), gson.toJsonTree(envelope))
+            activityEventsSinceLastSample.incrementAndGet()
         }
     }
 
     private fun appendJsonl(file: File, element: JsonElement) {
         file.parentFile?.mkdirs()
-        file.appendText(gson.toJson(element) + "\n")
+        val line = gson.toJson(element) + "\n"
+        file.appendText(line)
+        activityBytesSinceLastSample.addAndGet(line.toByteArray(Charsets.UTF_8).size.toLong())
     }
 
     private fun writeJson(file: File, element: JsonElement) {

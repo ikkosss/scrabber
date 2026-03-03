@@ -83,6 +83,16 @@
             android:text="@string/export" />
     </LinearLayout>
 
+    <com.example.bankscraperlogger.ui.IntensityBarsView
+        android:id="@+id/intensityView"
+        android:layout_width="0dp"
+        android:layout_height="24dp"
+        android:layout_marginHorizontal="8dp"
+        android:layout_marginBottom="6dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/controlsRow" />
+
     <WebView
         android:id="@+id/webView"
         android:layout_width="0dp"
@@ -90,7 +100,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/controlsRow" />
+        app:layout_constraintTop_toBottomOf="@id/intensityView" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
 

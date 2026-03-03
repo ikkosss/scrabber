@@ -3,6 +3,8 @@ package com.example.bankscraperlogger
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
@@ -17,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportWriter
 import com.example.bankscraperlogger.logging.LogRepository
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -36,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentMainUrl: String? = null
 
-    private val exportLauncher =
+    private val exportJsonLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
             val dir = repo.getActiveSessionDir()
@@ -45,12 +48,50 @@ class MainActivity : AppCompatActivity() {
                 return@registerForActivityResult
             }
             try {
-                exportWriter.writeExport(this, dir, uri)
-                toast("Exported: $uri")
+                exportWriter.writeExportJson(this, dir, uri)
+                toast("Exported JSON: $uri")
             } catch (t: Throwable) {
                 toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
             }
         }
+
+    private val exportZipLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
+            if (uri == null) return@registerForActivityResult
+            val dir = repo.getActiveSessionDir()
+            if (dir == null) {
+                toast("No session to export yet. Press Start first.")
+                return@registerForActivityResult
+            }
+            try {
+                exportWriter.writeExportZip(this, dir, uri)
+                toast("Exported ZIP: $uri")
+            } catch (t: Throwable) {
+                toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+            }
+        }
+
+    private val intensityHandler = Handler(Looper.getMainLooper())
+    private var intensityEma = 0f
+
+    private val intensityTicker = object : Runnable {
+        override fun run() {
+            val target = if (repo.isCollecting()) {
+                val sample = repo.drainActivitySample()
+                // Weight pages higher (HTML snapshots are the “heavy” writes).
+                val score = sample.events * 1.0 + sample.pages * 6.0 + (sample.bytes / 2048.0)
+                (score / 18.0).toFloat().coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+
+            // Smooth to avoid jitter.
+            intensityEma = (0.75f * intensityEma + 0.25f * target).coerceIn(0f, 1f)
+            binding.intensityView.setIntensity(intensityEma)
+
+            intensityHandler.postDelayed(this, 250)
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -170,7 +211,16 @@ class MainActivity : AppCompatActivity() {
 
         binding.exportButton.setOnClickListener {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            exportLauncher.launch("bankscraperlogger_export_$timestamp.json")
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Export")
+                .setItems(arrayOf("ZIP archive (recommended)", "JSON (single file)")) { _, which ->
+                    when (which) {
+                        0 -> exportZipLauncher.launch("bankscraperlogger_export_$timestamp.zip")
+                        1 -> exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
 
         // Initial page for quick testing.
@@ -178,6 +228,13 @@ class MainActivity : AppCompatActivity() {
             binding.urlEditText.setText("https://example.com")
             loadFromBar()
         }
+
+        intensityHandler.post(intensityTicker)
+    }
+
+    override fun onDestroy() {
+        intensityHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     private fun loadFromBar() {
