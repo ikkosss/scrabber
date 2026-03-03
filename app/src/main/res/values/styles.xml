@@ -2,7 +2,7 @@
 
     <style name="Widget.BSL.ToolbarIconButton" parent="Widget.AppCompat.ImageButton">
         <item name="android:background">@drawable/bsl_toolbar_button_bg</item>
-        <item name="android:padding">4dp</item>
+        <item name="android:padding">3dp</item>
         <item name="android:scaleType">centerInside</item>
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">40dp</item>

@@ -95,6 +95,7 @@
                 android:contentDescription="@string/cd_stop"
                 android:enabled="false"
                 android:alpha="0.45"
+                android:tint="?attr/colorControlNormal"
                 android:src="@drawable/ic_stop_square" />
 
             <androidx.appcompat.widget.AppCompatImageButton
