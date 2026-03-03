@@ -38,67 +38,78 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="8dp"
         android:layout_marginTop="6dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/urlInputLayout">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/backButton"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/back" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/forwardButton"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="@string/forward" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/reloadButton"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="@string/reload" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/actionRow"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="8dp"
-        android:layout_marginTop="6dp"
         android:layout_marginBottom="6dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/navRow">
+        app:layout_constraintTop_toBottomOf="@id/urlInputLayout"
+        app:layout_goneMarginTop="8dp">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/collectToggleButton"
+            android:id="@+id/backButton"
+            style="@style/Widget.BSL.IconButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/start_collect" />
+            android:contentDescription="@string/cd_back"
+            android:text=""
+            app:icon="@android:drawable/ic_media_previous" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/exportButton"
-            style="?attr/materialButtonOutlinedStyle"
+            android:id="@+id/forwardButton"
+            style="@style/Widget.BSL.IconButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_weight="1"
-            android:text="@string/export" />
+            android:contentDescription="@string/cd_forward"
+            android:text=""
+            app:icon="@android:drawable/ic_media_next" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/reloadButton"
+            style="@style/Widget.BSL.IconButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/cd_reload"
+            android:text=""
+            app:icon="@android:drawable/ic_popup_sync" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/collectToggleButton"
+            style="@style/Widget.BSL.IconButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/cd_start_stop"
+            android:text=""
+            app:icon="@android:drawable/ic_media_play" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/exportButton"
+            style="@style/Widget.BSL.IconButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/cd_export"
+            android:text=""
+            app:icon="@android:drawable/ic_menu_save" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/addressButton"
+            style="@style/Widget.BSL.IconButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/cd_address"
+            android:text=""
+            app:icon="@android:drawable/ic_menu_edit" />
     </LinearLayout>
 
     <com.example.bankscraperlogger.ui.IntensityBarsView
@@ -109,7 +120,7 @@
         android:layout_marginBottom="6dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/actionRow" />
+        app:layout_constraintTop_toBottomOf="@id/navRow" />
 
     <WebView
         android:id="@+id/webView"

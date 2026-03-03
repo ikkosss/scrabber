@@ -8,5 +8,12 @@
     <string name="start_collect">Start</string>
     <string name="stop_collect">Stop</string>
     <string name="export">Export</string>
+    <string name="show_address_bar">Address</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_forward">Forward</string>
+    <string name="cd_reload">Reload</string>
+    <string name="cd_start_stop">Start/Stop logging</string>
+    <string name="cd_export">Export</string>
+    <string name="cd_address">Show address bar</string>
 </resources>
 

@@ -1,14 +1,15 @@
 package com.example.bankscraperlogger
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.Manifest
 import android.view.KeyEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -19,8 +20,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
-import com.example.bankscraperlogger.export.DownloadsZipExporter
+import com.example.bankscraperlogger.export.ExportFolderManager
 import com.example.bankscraperlogger.export.ExportWriter
+import com.example.bankscraperlogger.export.ZipToFolderExporter
 import com.example.bankscraperlogger.logging.LogRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
@@ -39,10 +41,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var repo: LogRepository
     private val exportWriter = ExportWriter()
-    private val downloadsZipExporter = DownloadsZipExporter(exportWriter)
+    private lateinit var exportFolderManager: ExportFolderManager
+    private lateinit var zipToFolderExporter: ZipToFolderExporter
 
     private var currentMainUrl: String? = null
-    private var pendingDownloadsZipExport: Boolean = false
+    private var pendingZipExportAfterFolderPick: Boolean = false
 
     private val exportJsonLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
@@ -60,30 +63,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    private val exportZipLauncher =
-        registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
+    private val pickExportFolderLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
-            val dir = repo.getLastSessionDir()
-            if (dir == null) {
-                toast("No session to export yet. Press Start first.")
-                return@registerForActivityResult
-            }
             try {
-                exportWriter.writeExportZip(this, dir, uri)
-                toast("Exported ZIP: $uri")
-            } catch (t: Throwable) {
-                toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (_: Throwable) {
+                // Best-effort; some providers may not allow persistable permissions.
             }
-        }
-
-    private val writeStoragePermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (!pendingDownloadsZipExport) return@registerForActivityResult
-            pendingDownloadsZipExport = false
-            if (granted) {
-                exportZipToDownloads()
-            } else {
-                toast("Permission denied. Use ZIP (choose location) instead.")
+            exportFolderManager.setExportFolderUri(uri)
+            toast("Export folder selected")
+            if (pendingZipExportAfterFolderPick) {
+                pendingZipExportAfterFolderPick = false
+                exportZipToChosenFolder()
             }
         }
 
@@ -116,6 +109,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         repo = LogRepository(applicationContext)
+        exportFolderManager = ExportFolderManager(this)
+        zipToFolderExporter = ZipToFolderExporter(this, exportWriter)
 
         WebView.setWebContentsDebuggingEnabled(true)
 
@@ -213,27 +208,33 @@ class MainActivity : AppCompatActivity() {
         binding.collectToggleButton.setOnClickListener {
             if (repo.isCollecting()) {
                 repo.stopSession()
-                binding.collectToggleButton.text = getString(R.string.start_collect)
+                binding.collectToggleButton.setIconResource(android.R.drawable.ic_media_play)
                 toast("Collection stopped")
             } else {
                 val ua = binding.webView.settings.userAgentString ?: "unknown"
                 val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
                 repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
-                binding.collectToggleButton.text = getString(R.string.stop_collect)
+                binding.collectToggleButton.setIconResource(android.R.drawable.ic_media_pause)
                 toast("Collection started")
                 fetchAndStoreExternalIp()
             }
         }
 
+        binding.addressButton.setOnClickListener {
+            setUrlBarVisible(binding.urlInputLayout.visibility != View.VISIBLE)
+        }
+
         binding.exportButton.setOnClickListener {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             MaterialAlertDialogBuilder(this)
                 .setTitle("Export")
-                .setItems(arrayOf("ZIP → Downloads (auto name)", "ZIP (choose location)", "JSON (single file)")) { _, which ->
+                .setItems(arrayOf("Export ZIP (to chosen folder)", "Choose export folder", "Export JSON (choose file)")) { _, which ->
                     when (which) {
-                        0 -> exportZipToDownloadsWithPermissionIfNeeded()
-                        1 -> exportZipLauncher.launch(suggestedZipName() ?: "bankscraperlogger_export_$timestamp.zip")
-                        2 -> exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
+                        0 -> exportZipToChosenFolder()
+                        1 -> pickExportFolderLauncher.launch(null)
+                        2 -> {
+                            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                            exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
+                        }
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null)
@@ -260,6 +261,7 @@ class MainActivity : AppCompatActivity() {
         binding.urlEditText.setText(url)
         binding.webView.loadUrl(url)
         if (repo.isCollecting()) repo.logVisitedUrl(url, "manual_loadUrl")
+        setUrlBarVisible(false)
     }
 
     private fun normalizeUrl(input: String): String {
@@ -299,50 +301,40 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
-    private fun suggestedZipName(): String? {
-        val url = repo.getMeta()?.initialUrl ?: currentMainUrl
-        val host = try {
-            if (url.isNullOrBlank()) null else android.net.Uri.parse(url).host
-        } catch (_: Throwable) {
-            null
-        }
-        val safe = host
-            ?.trim()
-            ?.lowercase()
-            ?.replace(Regex("[^a-z0-9._-]"), "_")
-            ?.replace(Regex("_+"), "_")
-            ?.trim('_')
-            ?.take(80)
-            ?.takeIf { it.isNotBlank() }
-        return safe?.let { "$it.zip" }
-    }
-
-    private fun exportZipToDownloadsWithPermissionIfNeeded() {
-        val dir = repo.getLastSessionDir()
-        if (dir == null) {
-            toast("No session to export yet. Press Start first.")
-            return
-        }
-
-        if (Build.VERSION.SDK_INT < 29) {
-            pendingDownloadsZipExport = true
-            writeStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            return
-        }
-        exportZipToDownloads()
-    }
-
-    private fun exportZipToDownloads() {
+    private fun exportZipToChosenFolder() {
         val dir = repo.getLastSessionDir() ?: run {
             toast("No session to export yet. Press Start first.")
             return
         }
+
+        val folder = exportFolderManager.getExportFolder()
+        if (folder == null) {
+            pendingZipExportAfterFolderPick = true
+            toast("Choose export folder…")
+            pickExportFolderLauncher.launch(null)
+            return
+        }
+
         val bankUrl = repo.getMeta()?.initialUrl ?: currentMainUrl
         try {
-            val result = downloadsZipExporter.exportZipToDownloads(this, dir, bankUrl)
-            toast("Saved to Downloads: ${result.displayName}")
+            val result = zipToFolderExporter.export(dir, folder, bankUrl)
+            toast("Saved: ${result.displayName}")
         } catch (t: Throwable) {
             toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+        }
+    }
+
+    private fun setUrlBarVisible(visible: Boolean) {
+        binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.goButton.visibility = if (visible) View.VISIBLE else View.GONE
+
+        val imm = getSystemService(InputMethodManager::class.java)
+        if (visible) {
+            binding.urlEditText.requestFocus()
+            imm?.showSoftInput(binding.urlEditText, InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            imm?.hideSoftInputFromWindow(binding.urlEditText.windowToken, 0)
+            binding.webView.requestFocus()
         }
     }
 }
