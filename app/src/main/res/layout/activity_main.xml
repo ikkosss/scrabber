@@ -9,21 +9,130 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="6dp"
-        app:layout_constraintEnd_toStartOf="@id/modeToggleButton"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <FrameLayout
+            android:id="@+id/buttonsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:id="@+id/buttonsRow"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/backButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_skip_previous"
+                    android:contentDescription="@string/cd_back" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/forwardButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_skip_next"
+                    android:contentDescription="@string/cd_forward" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/reloadButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_refresh"
+                    android:contentDescription="@string/cd_reload" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/recordPauseButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_record"
+                    android:contentDescription="@string/cd_record_pause" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/stopButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_stop"
+                    android:contentDescription="@string/cd_stop"
+                    android:enabled="false"
+                    android:alpha="0.45" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/timeWarpButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_timer_clock"
+                    android:contentDescription="@string/simulate_time" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/modeToggleButton"
+                    style="@style/Widget.BSL.ToolbarIconButton"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:src="@drawable/ic_text_cursor"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@string/cd_toggle_bar" />
+            </LinearLayout>
+
+            <com.example.bankscraperlogger.ui.RecordingTimerView
+                android:id="@+id/recordingTimer"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="-48dp"
+                android:visibility="gone"
+                android:gravity="center"
+                android:textColor="@color/record_color"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_recording_timer"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
+        </FrameLayout>
+
+        <FrameLayout
             android:id="@+id/urlInputLayout"
             android:layout_width="match_parent"
-            android:layout_height="40dp">
+            android:layout_height="56dp"
+            android:visibility="gone">
 
             <androidx.appcompat.widget.AppCompatAutoCompleteTextView
                 android:id="@+id/urlEditText"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:layout_marginEnd="3dp"
                 android:background="@drawable/bsl_address_bg"
                 android:gravity="center_vertical"
                 android:hint="@string/url_hint"
@@ -33,93 +142,26 @@
                 android:maxLines="1"
                 android:overScrollMode="never"
                 android:paddingHorizontal="12dp"
+                android:paddingEnd="72dp"
                 android:scrollHorizontally="true"
                 android:scrollbars="none"
                 android:singleLine="true"
                 android:completionThreshold="1"
                 android:dropDownHeight="wrap_content"
                 android:textSize="14sp" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/addressModeToggleButton"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_gravity="end"
+                android:background="@drawable/bg_media_button"
+                android:src="@drawable/ic_toggle_grid"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/cd_toggle_bar" />
         </FrameLayout>
-
-        <LinearLayout
-            android:id="@+id/buttonsRow"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/backButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_back"
-                android:src="@drawable/ic_nav_back" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/forwardButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_forward"
-                android:src="@drawable/ic_nav_forward" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/reloadButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_reload"
-                android:src="@drawable/ic_nav_reload" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/recordPauseButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_record_pause"
-                android:src="@drawable/ic_record_dot"
-                android:tint="@null" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/stopButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_stop"
-                android:enabled="false"
-                android:alpha="0.45"
-                android:tint="?attr/colorControlNormal"
-                android:src="@drawable/ic_stop_square" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/timeWarpButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/simulate_time"
-                android:src="@drawable/ic_nav_time" />
-        </LinearLayout>
     </FrameLayout>
-
-    <androidx.appcompat.widget.AppCompatImageButton
-        android:id="@+id/modeToggleButton"
-        style="@style/Widget.BSL.ToolbarIconButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:contentDescription="@string/cd_toggle_bar"
-        android:src="@drawable/ic_toggle_cursor"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
     <com.example.bankscraperlogger.ui.IntensityBarsView
         android:id="@+id/intensityView"

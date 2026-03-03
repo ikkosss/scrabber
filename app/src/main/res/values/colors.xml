@@ -8,5 +8,13 @@
     <color name="md_theme_dark_onPrimary">#003062</color>
     <color name="md_theme_dark_background">#111417</color>
     <color name="md_theme_dark_onBackground">#E1E2E5</color>
+
+    <!-- Media panel colors (from spec) -->
+    <color name="media_icon_color">#9AAEDD</color>
+    <color name="media_button_bg">#1A1C26</color>
+    <color name="media_button_stroke">#505878</color>
+    <color name="record_color">#FF3B30</color>
+    <color name="timer_bg">#2A1515</color>
+    <color name="timer_stroke">#FF3B30</color>
 </resources>
 

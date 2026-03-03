@@ -230,13 +230,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.modeToggleButton.setOnClickListener {
-            toggleMode()
-        }
+        binding.modeToggleButton.setOnClickListener { toggleMode() }
         binding.modeToggleButton.setOnLongClickListener {
             showSecurityMenu()
             true
         }
+        binding.addressModeToggleButton.setOnClickListener { toggleMode() }
 
         if (savedInstanceState == null) {
             val startUrl = "https://google.ru"
@@ -244,6 +243,15 @@ class MainActivity : AppCompatActivity() {
             binding.webView.loadUrl(startUrl)
             setAddressModeVisible(false)
             syncRecordingUi()
+        }
+
+        // Size timer to 2 buttons width + gap (after layout).
+        binding.buttonsRow.post {
+            val btnW = binding.buttonsRow.getChildAt(0).width
+            val gapPx = (3 * resources.displayMetrics.density).toInt()
+            binding.recordingTimer.layoutParams = (binding.recordingTimer.layoutParams as android.widget.FrameLayout.LayoutParams).also {
+                it.width = btnW * 2 + gapPx
+            }
         }
 
         intensityHandler.post(intensityTicker)
@@ -366,10 +374,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setAddressModeVisible(visible: Boolean) {
         binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
-        binding.buttonsRow.visibility = if (visible) View.GONE else View.VISIBLE
-        binding.modeToggleButton.setImageResource(
-            if (visible) R.drawable.ic_toggle_grid else R.drawable.ic_toggle_cursor,
-        )
+        binding.modeToggleButton.setImageResource(if (visible) R.drawable.ic_toggle_grid else R.drawable.ic_text_cursor)
 
         val imm = getSystemService(InputMethodManager::class.java)
         if (visible) {
@@ -394,14 +399,17 @@ class MainActivity : AppCompatActivity() {
                 repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
                 toast(getString(R.string.toast_recording_started))
                 fetchAndStoreExternalIp()
+                binding.recordingTimer.startRecording()
             }
             LogRepository.RecordingState.RECORDING -> {
                 repo.pauseSession()
                 toast(getString(R.string.toast_paused))
+                binding.recordingTimer.pauseRecording()
             }
             LogRepository.RecordingState.PAUSED -> {
                 repo.resumeSession()
                 toast(getString(R.string.toast_resumed))
+                binding.recordingTimer.resumeRecording()
             }
         }
         syncRecordingUi()
@@ -412,6 +420,7 @@ class MainActivity : AppCompatActivity() {
         val sessionId = repo.getMeta()?.sessionId
         repo.stopSession()
         if (!wasStopped) toast(getString(R.string.toast_stopped))
+        binding.recordingTimer.stopRecording()
         syncRecordingUi()
 
         if (!withPrompt || wasStopped) return
@@ -469,21 +478,21 @@ class MainActivity : AppCompatActivity() {
                 binding.stopButton.alpha = 0.45f
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
-                binding.recordPauseButton.setImageResource(R.drawable.ic_record_dot)
+                binding.recordPauseButton.setImageResource(R.drawable.ic_record)
             }
             LogRepository.RecordingState.RECORDING -> {
                 binding.stopButton.isEnabled = true
                 binding.stopButton.alpha = 1f
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
-                binding.recordPauseButton.setImageResource(R.drawable.ic_pause_red)
+                binding.recordPauseButton.setImageResource(R.drawable.ic_pause)
             }
             LogRepository.RecordingState.PAUSED -> {
                 binding.stopButton.isEnabled = true
                 binding.stopButton.alpha = 1f
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
-                binding.recordPauseButton.setImageResource(R.drawable.ic_record_dot)
+                binding.recordPauseButton.setImageResource(R.drawable.ic_record)
             }
         }
     }
