@@ -15,6 +15,10 @@
     <string name="cd_start_stop">Start/Stop logging</string>
     <string name="cd_export">Export</string>
     <string name="cd_address">Show address bar</string>
+    <string name="cd_toggle_bar">Toggle address / buttons</string>
+    <string name="cd_start">Start recording</string>
+    <string name="cd_pause_resume">Pause/Resume recording</string>
+    <string name="cd_stop">Stop recording</string>
     <string name="lock_title">Unlock</string>
     <string name="pin_hint">PIN code</string>
     <string name="unlock">Unlock</string>

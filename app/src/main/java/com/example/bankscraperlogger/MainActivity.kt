@@ -17,7 +17,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.appcompat.widget.AppCompatImageButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
@@ -90,7 +89,7 @@ class MainActivity : AppCompatActivity() {
 
     private val intensityTicker = object : Runnable {
         override fun run() {
-            val target = if (repo.isCollecting()) {
+            val target = if (repo.isRecording()) {
                 val sample = repo.drainActivitySample()
                 // Weight pages higher (HTML snapshots are the “heavy” writes).
                 val score = sample.events * 1.0 + sample.pages * 6.0 + (sample.bytes / 2048.0)
@@ -147,21 +146,21 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 binding.urlEditText.setText(url)
-                if (repo.isCollecting()) repo.logVisitedUrl(url, "shouldOverrideUrlLoading")
+                if (repo.isRecording()) repo.logVisitedUrl(url, "shouldOverrideUrlLoading")
                 return false
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 currentMainUrl = url
                 binding.urlEditText.setText(url)
-                if (repo.isCollecting()) repo.logVisitedUrl(url, "onPageStarted")
+                if (repo.isRecording()) repo.logVisitedUrl(url, "onPageStarted")
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 binding.urlEditText.setText(url)
                 currentMainUrl = url
 
-                if (!repo.isCollecting()) return
+                if (!repo.isRecording()) return
 
                 val cookies = try {
                     CookieManager.getInstance().getCookie(url)
@@ -182,15 +181,11 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? {
-                if (repo.isCollecting()) {
+                if (repo.isRecording()) {
                     repo.logRequest(request, currentMainUrl)
                 }
                 return super.shouldInterceptRequest(view, request)
             }
-        }
-
-        binding.goButton.setOnClickListener {
-            loadFromBar()
         }
 
         binding.urlEditText.setOnEditorActionListener { _, actionId, event ->
@@ -214,26 +209,14 @@ class MainActivity : AppCompatActivity() {
             binding.webView.reload()
         }
 
-        binding.collectToggleButton.setOnClickListener {
-            if (repo.isCollecting()) {
-                repo.stopSession()
-                binding.collectToggleButton.setImageResource(android.R.drawable.ic_media_play)
-                toast("Collection stopped")
-            } else {
-                val ua = binding.webView.settings.userAgentString ?: "unknown"
-                val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
-                repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
-                binding.collectToggleButton.setImageResource(android.R.drawable.ic_media_pause)
-                toast("Collection started")
-                fetchAndStoreExternalIp()
-            }
-        }
+        binding.startButton.setOnClickListener { startRecording() }
+        binding.pauseResumeButton.setOnClickListener { pauseOrResume() }
+        binding.stopButton.setOnClickListener { stopRecording() }
 
-        binding.addressButton.setOnClickListener {
-            setUrlBarVisible(binding.urlInputLayout.visibility != View.VISIBLE)
+        binding.modeToggleButton.setOnClickListener {
+            toggleMode()
         }
-
-        binding.addressButton.setOnLongClickListener {
+        binding.modeToggleButton.setOnLongClickListener {
             showSecurityMenu()
             true
         }
@@ -255,10 +238,8 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Initial page for quick testing.
         if (savedInstanceState == null) {
-            binding.urlEditText.setText("https://example.com")
-            loadFromBar()
+            setAddressModeVisible(true)
         }
 
         intensityHandler.post(intensityTicker)
@@ -286,8 +267,8 @@ class MainActivity : AppCompatActivity() {
         val url = normalizeUrl(raw)
         binding.urlEditText.setText(url)
         binding.webView.loadUrl(url)
-        if (repo.isCollecting()) repo.logVisitedUrl(url, "manual_loadUrl")
-        setUrlBarVisible(false)
+        if (repo.isRecording()) repo.logVisitedUrl(url, "manual_loadUrl")
+        setAddressModeVisible(false)
     }
 
     private fun normalizeUrl(input: String): String {
@@ -350,9 +331,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setUrlBarVisible(visible: Boolean) {
+    private fun setAddressModeVisible(visible: Boolean) {
         binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
-        binding.goButton.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.buttonsRow.visibility = if (visible) View.GONE else View.VISIBLE
+        binding.modeToggleButton.setImageResource(
+            if (visible) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_edit,
+        )
 
         val imm = getSystemService(InputMethodManager::class.java)
         if (visible) {
@@ -364,9 +348,70 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun toggleMode() {
+        val isAddressVisible = binding.urlInputLayout.visibility == View.VISIBLE
+        setAddressModeVisible(!isAddressVisible)
+    }
+
+    private fun startRecording() {
+        val ua = binding.webView.settings.userAgentString ?: "unknown"
+        val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
+        repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
+        toast("Recording started")
+        fetchAndStoreExternalIp()
+        syncRecordingUi()
+    }
+
+    private fun pauseOrResume() {
+        when (repo.getRecordingState()) {
+            LogRepository.RecordingState.RECORDING -> {
+                repo.pauseSession()
+                toast("Paused")
+            }
+            LogRepository.RecordingState.PAUSED -> {
+                repo.resumeSession()
+                toast("Resumed")
+            }
+            else -> return
+        }
+        syncRecordingUi()
+    }
+
+    private fun stopRecording() {
+        repo.stopSession()
+        toast("Stopped")
+        syncRecordingUi()
+    }
+
+    private fun syncRecordingUi() {
+        when (repo.getRecordingState()) {
+            LogRepository.RecordingState.STOPPED -> {
+                binding.pauseResumeButton.isEnabled = false
+                binding.pauseResumeButton.alpha = 0.45f
+                binding.stopButton.isEnabled = false
+                binding.stopButton.alpha = 0.45f
+                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
+            }
+            LogRepository.RecordingState.RECORDING -> {
+                binding.pauseResumeButton.isEnabled = true
+                binding.pauseResumeButton.alpha = 1f
+                binding.stopButton.isEnabled = true
+                binding.stopButton.alpha = 1f
+                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
+            }
+            LogRepository.RecordingState.PAUSED -> {
+                binding.pauseResumeButton.isEnabled = true
+                binding.pauseResumeButton.alpha = 1f
+                binding.stopButton.isEnabled = true
+                binding.stopButton.alpha = 1f
+                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_play)
+            }
+        }
+    }
+
     private fun showLockOverlay() {
         isLocked = true
-        setUrlBarVisible(false)
+        setAddressModeVisible(false)
         binding.lockOverlay.visibility = View.VISIBLE
         binding.pinEditText.setText("")
         binding.pinInputLayout.error = null

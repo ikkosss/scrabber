@@ -20,7 +20,9 @@ class LogRepository(private val context: Context) {
 
     private val lock = Any()
 
-    private var collecting: Boolean = false
+    enum class RecordingState { STOPPED, RECORDING, PAUSED }
+
+    private var state: RecordingState = RecordingState.STOPPED
     private var meta: SessionMeta? = null
     private var sessionDir: File? = null
     private var lastSessionDir: File? = null
@@ -29,7 +31,11 @@ class LogRepository(private val context: Context) {
     private val activityPagesSinceLastSample = AtomicLong(0)
     private val activityBytesSinceLastSample = AtomicLong(0)
 
-    fun isCollecting(): Boolean = collecting
+    fun getRecordingState(): RecordingState = state
+
+    fun isRecording(): Boolean = state == RecordingState.RECORDING
+
+    fun isPaused(): Boolean = state == RecordingState.PAUSED
 
     fun getActiveSessionDir(): File? = sessionDir
 
@@ -70,7 +76,7 @@ class LogRepository(private val context: Context) {
             sessionDir = dir
             lastSessionDir = dir
             meta = newMeta
-            collecting = true
+            state = RecordingState.RECORDING
             writeJson(File(dir, "meta.json"), gson.toJsonTree(newMeta))
             appendEvent(
                 type = "session_start",
@@ -85,13 +91,29 @@ class LogRepository(private val context: Context) {
 
     fun stopSession() {
         synchronized(lock) {
-            if (!collecting) return
-            collecting = false
+            if (state == RecordingState.STOPPED) return
+            state = RecordingState.STOPPED
             lastSessionDir = sessionDir ?: lastSessionDir
             appendEvent(
                 type = "session_stop",
                 data = jsonObjectOf("stoppedAtMs" to System.currentTimeMillis()),
             )
+        }
+    }
+
+    fun pauseSession() {
+        synchronized(lock) {
+            if (state != RecordingState.RECORDING) return
+            state = RecordingState.PAUSED
+            appendEvent(type = "session_pause", data = jsonObjectOf("pausedAtMs" to System.currentTimeMillis()))
+        }
+    }
+
+    fun resumeSession() {
+        synchronized(lock) {
+            if (state != RecordingState.PAUSED) return
+            state = RecordingState.RECORDING
+            appendEvent(type = "session_resume", data = jsonObjectOf("resumedAtMs" to System.currentTimeMillis()))
         }
     }
 
@@ -107,7 +129,7 @@ class LogRepository(private val context: Context) {
     }
 
     fun logVisitedUrl(url: String, source: String) {
-        if (!collecting) return
+        if (!isRecording()) return
         appendEvent(
             type = "url_visit",
             data = jsonObjectOf(
@@ -118,7 +140,7 @@ class LogRepository(private val context: Context) {
     }
 
     fun logRequest(request: WebResourceRequest, mainPageUrl: String?) {
-        if (!collecting) return
+        if (!isRecording()) return
 
         val headers = JsonObject()
         try {
@@ -148,7 +170,7 @@ class LogRepository(private val context: Context) {
     }
 
     fun logPageHtml(url: String, title: String?, html: String, cookies: String?) {
-        if (!collecting) return
+        if (!isRecording()) return
         val dir = sessionDir ?: return
         val snapshot = jsonObjectOf(
             "tsMs" to System.currentTimeMillis(),
