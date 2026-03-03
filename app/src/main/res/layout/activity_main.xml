@@ -15,23 +15,29 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <com.google.android.material.textfield.TextInputLayout
+        <FrameLayout
             android:id="@+id/urlInputLayout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
-            app:hintEnabled="false">
+            android:layout_height="40dp">
 
-            <com.google.android.material.textfield.TextInputEditText
+            <androidx.appcompat.widget.AppCompatEditText
                 android:id="@+id/urlEditText"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:background="@drawable/bsl_address_bg"
+                android:gravity="center_vertical"
                 android:hint="@string/url_hint"
+                android:includeFontPadding="false"
                 android:imeOptions="actionGo"
                 android:inputType="textUri"
                 android:maxLines="1"
-                android:singleLine="true" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:overScrollMode="never"
+                android:paddingHorizontal="12dp"
+                android:scrollHorizontally="true"
+                android:scrollbars="none"
+                android:singleLine="true"
+                android:textSize="14sp" />
+        </FrameLayout>
 
         <LinearLayout
             android:id="@+id/buttonsRow"
@@ -97,7 +103,16 @@
                 android:contentDescription="@string/cd_stop"
                 android:enabled="false"
                 android:alpha="0.45"
-                android:src="@android:drawable/ic_menu_close_clear_cancel" />
+                android:src="@drawable/ic_stop_square" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/timeWarpButton"
+                style="@style/Widget.BSL.ToolbarIconButton"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:contentDescription="@string/simulate_time"
+                android:src="@android:drawable/ic_menu_recent_history" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/exportButton"
@@ -118,7 +133,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
         android:contentDescription="@string/cd_toggle_bar"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:src="@android:drawable/ic_menu_search"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

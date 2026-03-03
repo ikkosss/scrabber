@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Patterns
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -31,6 +32,7 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -212,6 +214,14 @@ class MainActivity : AppCompatActivity() {
         binding.startButton.setOnClickListener { startRecording() }
         binding.pauseResumeButton.setOnClickListener { pauseOrResume() }
         binding.stopButton.setOnClickListener { stopRecording() }
+        binding.timeWarpButton.setOnClickListener {
+            if (!appLock.isEnabled()) {
+                toast(getString(R.string.pin_not_set))
+            } else {
+                appLock.simulateAway(hours = 1)
+                showLockOverlay()
+            }
+        }
 
         binding.modeToggleButton.setOnClickListener {
             toggleMode()
@@ -239,7 +249,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (savedInstanceState == null) {
-            setAddressModeVisible(true)
+            val startUrl = "https://google.ru"
+            binding.urlEditText.setText(startUrl)
+            binding.webView.loadUrl(startUrl)
+            setAddressModeVisible(false)
+            syncRecordingUi()
         }
 
         intensityHandler.post(intensityTicker)
@@ -264,18 +278,45 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadFromBar() {
         val raw = binding.urlEditText.text?.toString().orEmpty()
-        val url = normalizeUrl(raw)
-        binding.urlEditText.setText(url)
-        binding.webView.loadUrl(url)
-        if (repo.isRecording()) repo.logVisitedUrl(url, "manual_loadUrl")
+        val resolved = resolveInput(raw)
+        binding.urlEditText.setText(resolved.displayText)
+        binding.webView.loadUrl(resolved.targetUrl)
+        if (repo.isRecording()) repo.logVisitedUrl(resolved.targetUrl, "manual_loadUrl")
         setAddressModeVisible(false)
     }
 
-    private fun normalizeUrl(input: String): String {
+    private data class ResolvedInput(
+        val targetUrl: String,
+        val displayText: String,
+    )
+
+    private fun resolveInput(input: String): ResolvedInput {
         val trimmed = input.trim()
-        if (trimmed.isEmpty()) return "https://example.com"
+        if (trimmed.isEmpty()) {
+            return ResolvedInput(targetUrl = "https://google.ru", displayText = "https://google.ru")
+        }
+
+        val looksLikeUrl = isProbablyUrl(trimmed)
+        if (!looksLikeUrl) {
+            val q = URLEncoder.encode(trimmed, "UTF-8")
+            return ResolvedInput(
+                targetUrl = "https://www.google.ru/search?q=$q",
+                displayText = trimmed,
+            )
+        }
+
         val hasScheme = trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
-        return if (hasScheme) trimmed else "https://$trimmed"
+        val candidate = if (hasScheme) trimmed else "https://$trimmed"
+        return ResolvedInput(targetUrl = candidate, displayText = candidate)
+    }
+
+    private fun isProbablyUrl(text: String): Boolean {
+        if (text.contains(' ')) return false
+        if (text.startsWith("http://", true) || text.startsWith("https://", true)) return true
+        // Simple domain heuristic: must contain a dot and some letters/digits.
+        if (!text.contains('.')) return false
+        val withScheme = "https://$text"
+        return Patterns.WEB_URL.matcher(withScheme).matches()
     }
 
     private fun fetchAndStoreExternalIp() {
@@ -334,9 +375,6 @@ class MainActivity : AppCompatActivity() {
     private fun setAddressModeVisible(visible: Boolean) {
         binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
         binding.buttonsRow.visibility = if (visible) View.GONE else View.VISIBLE
-        binding.modeToggleButton.setImageResource(
-            if (visible) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_edit,
-        )
 
         val imm = getSystemService(InputMethodManager::class.java)
         if (visible) {
@@ -354,6 +392,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startRecording() {
+        if (repo.getRecordingState() != LogRepository.RecordingState.STOPPED) return
         val ua = binding.webView.settings.userAgentString ?: "unknown"
         val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
         repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
@@ -386,6 +425,8 @@ class MainActivity : AppCompatActivity() {
     private fun syncRecordingUi() {
         when (repo.getRecordingState()) {
             LogRepository.RecordingState.STOPPED -> {
+                binding.startButton.isEnabled = true
+                binding.startButton.alpha = 1f
                 binding.pauseResumeButton.isEnabled = false
                 binding.pauseResumeButton.alpha = 0.45f
                 binding.stopButton.isEnabled = false
@@ -393,6 +434,8 @@ class MainActivity : AppCompatActivity() {
                 binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
             }
             LogRepository.RecordingState.RECORDING -> {
+                binding.startButton.isEnabled = false
+                binding.startButton.alpha = 0.45f
                 binding.pauseResumeButton.isEnabled = true
                 binding.pauseResumeButton.alpha = 1f
                 binding.stopButton.isEnabled = true
@@ -400,6 +443,8 @@ class MainActivity : AppCompatActivity() {
                 binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
             }
             LogRepository.RecordingState.PAUSED -> {
+                binding.startButton.isEnabled = false
+                binding.startButton.alpha = 0.45f
                 binding.pauseResumeButton.isEnabled = true
                 binding.pauseResumeButton.alpha = 1f
                 binding.stopButton.isEnabled = true
