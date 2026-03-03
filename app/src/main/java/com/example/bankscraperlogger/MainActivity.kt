@@ -124,6 +124,15 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
             setSupportZoom(true)
+
+            // Some sites block Android WebView by UA tokens ("wv", "Version/4.0").
+            userAgentString = sanitizeUserAgent(userAgentString)
+
+            // Compatibility toggles for bank pages.
+            javaScriptCanOpenWindowsAutomatically = true
+            setSupportMultipleWindows(true)
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
 
         binding.webView.addJavascriptInterface(BlobDownloadBridge(), "BSLDownloadBridge")
@@ -607,6 +616,17 @@ class MainActivity : AppCompatActivity() {
             .replace(Regex("\\s+"), " ")
             .take(120)
             .ifBlank { "download.bin" }
+    }
+
+    private fun sanitizeUserAgent(current: String?): String {
+        val ua = (current ?: "").ifBlank { return current ?: "" }
+        return ua
+            .replace("; wv", "")
+            .replace(" wv", "")
+            .replace("Version/4.0 ", "")
+            .replace("Version/4.0", "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     private fun toast(message: String) {
