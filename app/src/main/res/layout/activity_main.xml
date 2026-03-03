@@ -56,7 +56,7 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:contentDescription="@string/cd_back"
-                android:src="@android:drawable/ic_media_previous" />
+                android:src="@drawable/ic_nav_back" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/forwardButton"
@@ -65,7 +65,7 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:contentDescription="@string/cd_forward"
-                android:src="@android:drawable/ic_media_next" />
+                android:src="@drawable/ic_nav_forward" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/reloadButton"
@@ -74,7 +74,7 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:contentDescription="@string/cd_reload"
-                android:src="@android:drawable/ic_popup_sync" />
+                android:src="@drawable/ic_nav_reload" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/recordPauseButton"
@@ -104,7 +104,7 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:contentDescription="@string/simulate_time"
-                android:src="@android:drawable/ic_menu_recent_history" />
+                android:src="@drawable/ic_nav_time" />
         </LinearLayout>
     </FrameLayout>
 
