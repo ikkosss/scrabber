@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
     private val exportJsonLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
-            val dir = repo.getActiveSessionDir()
+            val dir = repo.getLastSessionDir()
             if (dir == null) {
                 toast("No session to export yet. Press Start first.")
                 return@registerForActivityResult
@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     private val exportZipLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
-            val dir = repo.getActiveSessionDir()
+            val dir = repo.getLastSessionDir()
             if (dir == null) {
                 toast("No session to export yet. Press Start first.")
                 return@registerForActivityResult

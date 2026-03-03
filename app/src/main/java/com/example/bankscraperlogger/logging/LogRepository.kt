@@ -10,6 +10,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
 class LogRepository(private val context: Context) {
@@ -22,6 +23,7 @@ class LogRepository(private val context: Context) {
     private var collecting: Boolean = false
     private var meta: SessionMeta? = null
     private var sessionDir: File? = null
+    private var lastSessionDir: File? = null
 
     private val activityEventsSinceLastSample = AtomicLong(0)
     private val activityPagesSinceLastSample = AtomicLong(0)
@@ -30,6 +32,8 @@ class LogRepository(private val context: Context) {
     fun isCollecting(): Boolean = collecting
 
     fun getActiveSessionDir(): File? = sessionDir
+
+    fun getLastSessionDir(): File? = lastSessionDir
 
     fun getMeta(): SessionMeta? = meta
 
@@ -48,7 +52,9 @@ class LogRepository(private val context: Context) {
     }
 
     fun startNewSession(userAgent: String, initialUrl: String?) {
-        val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        // Include milliseconds + random suffix to avoid collisions when restarting quickly.
+        val sessionId = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date()) +
+            "_" + UUID.randomUUID().toString().take(8)
         val dir = File(File(context.filesDir, "bsl_sessions"), sessionId)
         dir.mkdirs()
 
@@ -62,6 +68,7 @@ class LogRepository(private val context: Context) {
 
         synchronized(lock) {
             sessionDir = dir
+            lastSessionDir = dir
             meta = newMeta
             collecting = true
             writeJson(File(dir, "meta.json"), gson.toJsonTree(newMeta))
@@ -80,6 +87,7 @@ class LogRepository(private val context: Context) {
         synchronized(lock) {
             if (!collecting) return
             collecting = false
+            lastSessionDir = sessionDir ?: lastSessionDir
             appendEvent(
                 type = "session_stop",
                 data = jsonObjectOf("stoppedAtMs" to System.currentTimeMillis()),
