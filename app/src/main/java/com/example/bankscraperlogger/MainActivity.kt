@@ -41,6 +41,7 @@ import com.example.bankscraperlogger.security.AppLockStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -148,6 +149,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.webView.addJavascriptInterface(BlobDownloadBridge(), "BSLDownloadBridge")
+        binding.webView.addJavascriptInterface(NetBridge(), "BSLNetBridge")
 
         binding.webView.webChromeClient = object : WebChromeClient() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
@@ -242,6 +244,7 @@ class MainActivity : AppCompatActivity() {
                 binding.urlEditText.setText(url)
                 if (repo.isRecording()) repo.logVisitedUrl(url, "onPageStarted")
                 injectBlobHooks(view)
+                injectNetworkHooks(view)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -253,6 +256,7 @@ class MainActivity : AppCompatActivity() {
 
                 // Patch blob downloads: store blobs passed to URL.createObjectURL so we can export them later.
                 injectBlobHooks(view)
+                injectNetworkHooks(view)
 
                 if (!repo.isRecording()) return
 
@@ -808,6 +812,248 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         view.evaluateJavascript(js, null)
+    }
+
+    private fun injectNetworkHooks(view: WebView) {
+        val js = """
+            (function() {
+              try {
+                if (window.__bslNetPatched) return;
+                window.__bslNetPatched = true;
+
+                const MAX = 64 * 1024;
+                function trunc(s) {
+                  try {
+                    s = (s === undefined || s === null) ? "" : String(s);
+                    return (s.length > MAX) ? (s.slice(0, MAX) + "\\n...[truncated]") : s;
+                  } catch(e) { return ""; }
+                }
+
+                function safeJson(obj) {
+                  try { return JSON.stringify(obj); } catch(e) { return "{}"; }
+                }
+
+                function formDataToObj(fd) {
+                  const out = [];
+                  try {
+                    for (const pair of fd.entries()) {
+                      const k = pair[0];
+                      const v = pair[1];
+                      if (v && typeof v === 'object' && v.name) {
+                        out.push([k, {fileName: v.name, size: v.size, type: v.type}]);
+                      } else {
+                        out.push([k, String(v)]);
+                      }
+                    }
+                  } catch(e) {}
+                  return out;
+                }
+
+                async function bodyToText(body) {
+                  try {
+                    if (body === undefined || body === null) return null;
+                    if (typeof body === 'string') return trunc(body);
+                    if (body instanceof URLSearchParams) return trunc(body.toString());
+                    if (typeof FormData !== 'undefined' && body instanceof FormData) return trunc(safeJson(formDataToObj(body)));
+                    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+                      // Don't read full blob; just metadata.
+                      return trunc(safeJson({blob:true, size: body.size, type: body.type}));
+                    }
+                    if (body instanceof ArrayBuffer) return trunc(safeJson({arrayBuffer:true, byteLength: body.byteLength}));
+                    if (body.buffer && body.byteLength !== undefined) return trunc(safeJson({typedArray:true, byteLength: body.byteLength}));
+                    return trunc(safeJson(body));
+                  } catch(e) {
+                    return trunc(String(e && e.message ? e.message : e));
+                  }
+                }
+
+                function now() { return Date.now(); }
+                function send(kind, obj) {
+                  try {
+                    window.BSLNetBridge && window.BSLNetBridge.onNetEvent(kind, safeJson(obj));
+                  } catch(e) {}
+                }
+
+                // fetch hook
+                if (window.fetch) {
+                  const origFetch = window.fetch.bind(window);
+                  window.fetch = function(input, init) {
+                    const startedAt = now();
+                    const url = (typeof input === 'string') ? input : (input && input.url ? input.url : "");
+                    const method = (init && init.method) ? init.method : (input && input.method ? input.method : "GET");
+                    const reqHeaders = (init && init.headers) ? init.headers : (input && input.headers ? input.headers : null);
+                    const reqId = Math.random().toString(36).slice(2, 10);
+                    Promise.resolve().then(async () => {
+                      send("request", {
+                        reqId,
+                        transport: "fetch",
+                        tsMs: startedAt,
+                        url,
+                        method,
+                        headers: reqHeaders || null,
+                        body: await bodyToText(init && init.body),
+                      });
+                    });
+                    return origFetch(input, init).then(resp => {
+                      const endedAt = now();
+                      const status = resp.status;
+                      const ok = resp.ok;
+                      const respHeaders = (function(){
+                        try {
+                          const h = {};
+                          resp.headers && resp.headers.forEach((v,k)=>{h[k]=v});
+                          return h;
+                        } catch(e) { return null; }
+                      })();
+                      try {
+                        const clone = resp.clone();
+                        clone.text().then(t => {
+                          send("response", {
+                            reqId,
+                            transport: "fetch",
+                            tsMs: endedAt,
+                            durationMs: endedAt - startedAt,
+                            url,
+                            status,
+                            ok,
+                            headers: respHeaders,
+                            body: trunc(t),
+                          });
+                        }).catch(err => {
+                          send("response", {
+                            reqId,
+                            transport: "fetch",
+                            tsMs: endedAt,
+                            durationMs: endedAt - startedAt,
+                            url,
+                            status,
+                            ok,
+                            headers: respHeaders,
+                            body: null,
+                            bodyError: String(err && err.message ? err.message : err),
+                          });
+                        });
+                      } catch(e) {
+                        send("response", { reqId, transport:"fetch", tsMs: endedAt, durationMs: endedAt-startedAt, url, status, ok, headers: respHeaders, body: null });
+                      }
+                      return resp;
+                    }).catch(err => {
+                      const endedAt = now();
+                      send("error", {
+                        reqId,
+                        transport: "fetch",
+                        tsMs: endedAt,
+                        durationMs: endedAt - startedAt,
+                        url,
+                        method,
+                        error: String(err && err.message ? err.message : err),
+                      });
+                      throw err;
+                    });
+                  };
+                }
+
+                // XHR hook
+                (function() {
+                  const XHR = window.XMLHttpRequest;
+                  if (!XHR) return;
+                  const origOpen = XHR.prototype.open;
+                  const origSend = XHR.prototype.send;
+                  const origSetHeader = XHR.prototype.setRequestHeader;
+
+                  XHR.prototype.open = function(method, url) {
+                    this.__bsl = { method: method, url: url, startedAt: 0, headers: {} , reqId: Math.random().toString(36).slice(2,10) };
+                    return origOpen.apply(this, arguments);
+                  };
+                  XHR.prototype.setRequestHeader = function(k, v) {
+                    try { if (this.__bsl) this.__bsl.headers[k] = v; } catch(e){}
+                    return origSetHeader.apply(this, arguments);
+                  };
+                  XHR.prototype.send = function(body) {
+                    try {
+                      if (this.__bsl) {
+                        this.__bsl.startedAt = now();
+                        const meta = this.__bsl;
+                        Promise.resolve().then(async () => {
+                          send("request", {
+                            reqId: meta.reqId,
+                            transport: "xhr",
+                            tsMs: meta.startedAt,
+                            url: meta.url,
+                            method: meta.method,
+                            headers: meta.headers,
+                            body: await bodyToText(body),
+                          });
+                        });
+                        this.addEventListener('readystatechange', function() {
+                          try {
+                            if (this.readyState === 4) {
+                              const endedAt = now();
+                              const t = (function(){ try { return this.responseText; } catch(e){ return null; } }).call(this);
+                              send("response", {
+                                reqId: meta.reqId,
+                                transport: "xhr",
+                                tsMs: endedAt,
+                                durationMs: endedAt - meta.startedAt,
+                                url: meta.url,
+                                status: this.status,
+                                ok: (this.status >= 200 && this.status < 300),
+                                headers: null,
+                                body: t === null ? null : trunc(t),
+                              });
+                            }
+                          } catch(e) {}
+                        });
+                      }
+                    } catch(e) {}
+                    return origSend.apply(this, arguments);
+                  };
+                })();
+
+              } catch (e) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(js, null)
+    }
+
+    private inner class NetBridge {
+        @JavascriptInterface
+        fun onNetEvent(kind: String, json: String) {
+            if (!repo.isRecording() && !repo.isPaused()) return
+            val el: JsonElement = try {
+                gson.fromJson(json, JsonElement::class.java)
+            } catch (_: Throwable) {
+                gson.toJsonTree(mapOf("parseError" to true, "raw" to json))
+            }
+            repo.logJsNetwork(kind = kind, payload = el)
+            scheduleDomSnapshotAfterNetwork()
+        }
+    }
+
+    private var pendingDomSnapshot = false
+    private fun scheduleDomSnapshotAfterNetwork() {
+        if (!repo.isRecording()) return
+        if (pendingDomSnapshot) return
+        pendingDomSnapshot = true
+        binding.webView.postDelayed({
+            pendingDomSnapshot = false
+            captureDomSnapshot(source = "after_network")
+        }, 550)
+    }
+
+    private fun captureDomSnapshot(source: String) {
+        val url = currentMainUrl ?: return
+        val view = binding.webView
+        val cookies = try { CookieManager.getInstance().getCookie(url) } catch (_: Throwable) { null }
+        view.evaluateJavascript("(function(){return document.documentElement && document.documentElement.outerHTML ? document.documentElement.outerHTML : '';})()") { value ->
+            try {
+                val html = if (value == null || value == "null") "" else gson.fromJson(value, String::class.java)
+                // Store as a normal page snapshot but include marker in title.
+                val title = (view.title ?: "").let { t -> if (t.isBlank()) "[$source]" else "[$source] $t" }
+                repo.logPageHtml(url = url, title = title, html = html, cookies = cookies)
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     private fun clearSiteDataForCurrentHost() {

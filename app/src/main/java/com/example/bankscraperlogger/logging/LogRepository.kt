@@ -258,6 +258,17 @@ class LogRepository(private val context: Context) {
         )
     }
 
+    fun logJsNetwork(
+        kind: String, // "request" | "response" | "error"
+        payload: JsonElement,
+    ) {
+        if (!isRecording() && !isPaused()) return
+        appendEvent(
+            type = "js_network_$kind",
+            data = payload,
+        )
+    }
+
     private fun appendEvent(type: String, data: JsonElement?) {
         val dir = sessionDir ?: return
         val envelope = EventEnvelope(
