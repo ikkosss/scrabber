@@ -225,6 +225,7 @@ class ExportWriter {
         val basePath = dir.canonicalFile.toPath()
         dir.walkTopDown()
             .filter { it.isFile }
+            .filter { !it.name.endsWith(".part") }
             .forEach { file ->
                 val rel = try {
                     basePath.relativize(file.canonicalFile.toPath()).toString().replace('\\', '/')

@@ -5,11 +5,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Patterns
+import android.util.Base64
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -41,6 +43,8 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -61,6 +65,15 @@ class MainActivity : AppCompatActivity() {
     private var isLocked: Boolean = false
     private var stopExportOfferHandledSessionId: String? = null
     private var pendingAllowedHostsForExport: Set<String>? = null
+
+    private data class PendingBlobDownload(
+        val originalUrl: String,
+        val outFile: File,
+        val inRecording: Boolean,
+        val displayName: String,
+    )
+
+    private val pendingBlobDownloads = ConcurrentHashMap<String, PendingBlobDownload>()
 
     private val pickExportFolderLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -83,7 +96,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -112,6 +125,8 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
             setSupportZoom(true)
         }
+
+        binding.webView.addJavascriptInterface(BlobDownloadBridge(), "BSLDownloadBridge")
 
         binding.webView.webChromeClient = object : WebChromeClient() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
@@ -344,6 +359,53 @@ class MainActivity : AppCompatActivity() {
             File(dir, sanitizeFilename(guessedName))
         }
 
+        val scheme = try { Uri.parse(url).scheme?.lowercase(Locale.US) } catch (_: Throwable) { null }
+        if (scheme == "blob") {
+            if (outFile != null) {
+                if (inRecording) {
+                    repo.logDownloadStarted(
+                        url = url,
+                        filename = outFile.name,
+                        mimeType = mimeType,
+                        contentLength = contentLength,
+                        userAgent = userAgent,
+                        referer = currentMainUrl,
+                    )
+                }
+                startBlobDownload(
+                    blobUrl = url,
+                    outFile = outFile,
+                    inRecording = inRecording,
+                    displayName = outFile.name,
+                )
+            } else {
+                toast(getString(R.string.toast_download_failed, "No output file"))
+            }
+            return
+        }
+
+        if (scheme != null && scheme != "http" && scheme != "https") {
+            if (inRecording && outFile != null) {
+                repo.logDownloadStarted(
+                    url = url,
+                    filename = outFile.name,
+                    mimeType = mimeType,
+                    contentLength = contentLength,
+                    userAgent = userAgent,
+                    referer = currentMainUrl,
+                )
+                repo.logDownloadFinished(
+                    url = url,
+                    filename = outFile.name,
+                    relativePath = "downloads/${outFile.name}",
+                    bytes = 0,
+                    error = "Unsupported URL scheme: $scheme",
+                )
+            }
+            toast(getString(R.string.toast_download_failed, "Unsupported URL scheme: $scheme"))
+            return
+        }
+
         if (inRecording && outFile != null) {
             repo.logDownloadStarted(
                 url = url,
@@ -359,6 +421,7 @@ class MainActivity : AppCompatActivity() {
             var bytes: Long = 0
             var error: String? = null
             try {
+                val tmpFile = outFile?.let { File(it.parentFile, it.name + ".part") }
                 val req = Request.Builder()
                     .url(url)
                     .get()
@@ -372,8 +435,8 @@ class MainActivity : AppCompatActivity() {
                 okHttp.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                     val body = resp.body ?: throw IOException("Empty body")
-                    outFile?.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { fos ->
+                    tmpFile?.parentFile?.mkdirs()
+                    FileOutputStream(tmpFile ?: outFile).use { fos ->
                         body.byteStream().use { input ->
                             val buf = ByteArray(64 * 1024)
                             while (true) {
@@ -386,10 +449,16 @@ class MainActivity : AppCompatActivity() {
                         fos.flush()
                     }
                 }
+                if (tmpFile != null && outFile != null) {
+                    if (!tmpFile.renameTo(outFile)) {
+                        throw IOException("Failed to finalize download")
+                    }
+                }
             } catch (t: Throwable) {
                 error = t.message ?: t.javaClass.simpleName
                 try {
                     outFile?.delete()
+                    outFile?.let { File(it.parentFile, it.name + ".part") }?.delete()
                 } catch (_: Throwable) {
                 }
             }
@@ -412,6 +481,123 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun startBlobDownload(
+        blobUrl: String,
+        outFile: File,
+        inRecording: Boolean,
+        displayName: String,
+    ) {
+        val token = UUID.randomUUID().toString().take(8)
+        pendingBlobDownloads[token] = PendingBlobDownload(
+            originalUrl = blobUrl,
+            outFile = outFile,
+            inRecording = inRecording,
+            displayName = displayName,
+        )
+
+        val js = """
+            (function() {
+              const token = ${gson.toJson(token)};
+              const url = ${gson.toJson(blobUrl)};
+              const filename = ${gson.toJson(displayName)};
+              const MAX = 25 * 1024 * 1024;
+              try {
+                fetch(url).then(r => r.blob()).then(blob => {
+                  const size = blob && blob.size ? blob.size : 0;
+                  if (size && size > MAX) throw new Error("Blob too large: " + size);
+                  return new Promise((resolve, reject) => {
+                    const fr = new FileReader();
+                    fr.onerror = () => reject(fr.error || new Error("FileReader error"));
+                    fr.onloadend = () => resolve(fr.result);
+                    fr.readAsDataURL(blob);
+                  });
+                }).then(dataUrl => {
+                  window.BSLDownloadBridge.onBlobData(token, String(dataUrl), filename);
+                }).catch(err => {
+                  window.BSLDownloadBridge.onBlobError(token, String(err && err.message ? err.message : err));
+                });
+              } catch (e) {
+                window.BSLDownloadBridge.onBlobError(token, String(e && e.message ? e.message : e));
+              }
+            })();
+        """.trimIndent()
+
+        binding.webView.post {
+            binding.webView.evaluateJavascript(js, null)
+        }
+    }
+
+    private inner class BlobDownloadBridge {
+        @JavascriptInterface
+        fun onBlobData(token: String, dataUrl: String, filename: String) {
+            val ctx = pendingBlobDownloads.remove(token) ?: return
+            Thread {
+                var bytes: Long = 0
+                var error: String? = null
+                try {
+                    val base64Marker = "base64,"
+                    val idx = dataUrl.indexOf(base64Marker)
+                    if (idx < 0) throw IOException("Invalid data URL")
+                    val b64 = dataUrl.substring(idx + base64Marker.length)
+                    val decoded = Base64.decode(b64, Base64.DEFAULT)
+
+                    val tmpFile = File(ctx.outFile.parentFile, ctx.outFile.name + ".part")
+                    tmpFile.parentFile?.mkdirs()
+                    FileOutputStream(tmpFile).use { fos ->
+                        fos.write(decoded)
+                        fos.flush()
+                    }
+                    if (!tmpFile.renameTo(ctx.outFile)) {
+                        throw IOException("Failed to finalize blob download")
+                    }
+                    bytes = decoded.size.toLong()
+                } catch (t: Throwable) {
+                    error = t.message ?: t.javaClass.simpleName
+                    try {
+                        ctx.outFile.delete()
+                        File(ctx.outFile.parentFile, ctx.outFile.name + ".part").delete()
+                    } catch (_: Throwable) {
+                    }
+                }
+
+                if (ctx.inRecording) {
+                    repo.logDownloadFinished(
+                        url = ctx.originalUrl,
+                        filename = ctx.outFile.name,
+                        relativePath = "downloads/${ctx.outFile.name}",
+                        bytes = bytes,
+                        error = error,
+                    )
+                }
+
+                runOnUiThread {
+                    if (error == null) {
+                        toast(getString(R.string.toast_download_ok, filename))
+                    } else {
+                        toast(getString(R.string.toast_download_failed, error))
+                    }
+                }
+            }.start()
+        }
+
+        @JavascriptInterface
+        fun onBlobError(token: String, error: String) {
+            val ctx = pendingBlobDownloads.remove(token)
+            if (ctx?.inRecording == true) {
+                repo.logDownloadFinished(
+                    url = ctx.originalUrl,
+                    filename = ctx.outFile.name,
+                    relativePath = "downloads/${ctx.outFile.name}",
+                    bytes = 0,
+                    error = error,
+                )
+            }
+            runOnUiThread {
+                toast(getString(R.string.toast_download_failed, error))
+            }
+        }
     }
 
     private fun sanitizeFilename(name: String): String {
