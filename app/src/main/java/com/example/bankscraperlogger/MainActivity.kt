@@ -2,9 +2,11 @@ package com.example.bankscraperlogger
 
 import android.annotation.SuppressLint
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.Manifest
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
@@ -17,6 +19,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
+import com.example.bankscraperlogger.export.DownloadsZipExporter
 import com.example.bankscraperlogger.export.ExportWriter
 import com.example.bankscraperlogger.logging.LogRepository
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -36,8 +39,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var repo: LogRepository
     private val exportWriter = ExportWriter()
+    private val downloadsZipExporter = DownloadsZipExporter(exportWriter)
 
     private var currentMainUrl: String? = null
+    private var pendingDownloadsZipExport: Boolean = false
 
     private val exportJsonLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
@@ -68,6 +73,17 @@ class MainActivity : AppCompatActivity() {
                 toast("Exported ZIP: $uri")
             } catch (t: Throwable) {
                 toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+            }
+        }
+
+    private val writeStoragePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!pendingDownloadsZipExport) return@registerForActivityResult
+            pendingDownloadsZipExport = false
+            if (granted) {
+                exportZipToDownloads()
+            } else {
+                toast("Permission denied. Use ZIP (choose location) instead.")
             }
         }
 
@@ -213,10 +229,11 @@ class MainActivity : AppCompatActivity() {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             MaterialAlertDialogBuilder(this)
                 .setTitle("Export")
-                .setItems(arrayOf("ZIP archive (recommended)", "JSON (single file)")) { _, which ->
+                .setItems(arrayOf("ZIP → Downloads (auto name)", "ZIP (choose location)", "JSON (single file)")) { _, which ->
                     when (which) {
-                        0 -> exportZipLauncher.launch("bankscraperlogger_export_$timestamp.zip")
-                        1 -> exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
+                        0 -> exportZipToDownloadsWithPermissionIfNeeded()
+                        1 -> exportZipLauncher.launch(suggestedZipName() ?: "bankscraperlogger_export_$timestamp.zip")
+                        2 -> exportJsonLauncher.launch("bankscraperlogger_export_$timestamp.json")
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null)
@@ -280,6 +297,53 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun suggestedZipName(): String? {
+        val url = repo.getMeta()?.initialUrl ?: currentMainUrl
+        val host = try {
+            if (url.isNullOrBlank()) null else android.net.Uri.parse(url).host
+        } catch (_: Throwable) {
+            null
+        }
+        val safe = host
+            ?.trim()
+            ?.lowercase()
+            ?.replace(Regex("[^a-z0-9._-]"), "_")
+            ?.replace(Regex("_+"), "_")
+            ?.trim('_')
+            ?.take(80)
+            ?.takeIf { it.isNotBlank() }
+        return safe?.let { "$it.zip" }
+    }
+
+    private fun exportZipToDownloadsWithPermissionIfNeeded() {
+        val dir = repo.getLastSessionDir()
+        if (dir == null) {
+            toast("No session to export yet. Press Start first.")
+            return
+        }
+
+        if (Build.VERSION.SDK_INT < 29) {
+            pendingDownloadsZipExport = true
+            writeStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            return
+        }
+        exportZipToDownloads()
+    }
+
+    private fun exportZipToDownloads() {
+        val dir = repo.getLastSessionDir() ?: run {
+            toast("No session to export yet. Press Start first.")
+            return
+        }
+        val bankUrl = repo.getMeta()?.initialUrl ?: currentMainUrl
+        try {
+            val result = downloadsZipExporter.exportZipToDownloads(this, dir, bankUrl)
+            toast("Saved to Downloads: ${result.displayName}")
+        } catch (t: Throwable) {
+            toast("Export failed: ${t.message ?: t.javaClass.simpleName}")
+        }
     }
 }
 

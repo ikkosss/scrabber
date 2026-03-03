@@ -49,44 +49,48 @@ class ExportWriter {
     fun writeExportZip(context: Context, sessionDir: File, outputUri: Uri) {
         val contentResolver = context.contentResolver
         contentResolver.openOutputStream(outputUri)?.use { out ->
-            ZipOutputStream(out).use { zip ->
-                zip.setLevel(6)
-
-                putTextEntry(zip, "README.txt", buildReadmeText())
-                putFileEntryIfExists(zip, File(sessionDir, "meta.json"), "meta.json")
-                putFileEntryIfExists(zip, File(sessionDir, "events.jsonl"), "events.jsonl")
-                putFileEntryIfExists(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl")
-
-                // Also include a single, easy-to-consume JSON.
-                zip.putNextEntry(ZipEntry("export.json"))
-                val nonClosing = NonClosingOutputStream(zip)
-                OutputStreamWriter(nonClosing, Charsets.UTF_8).use { osw ->
-                    JsonWriter(osw).use { writer ->
-                        writer.setIndent("  ")
-                        writer.beginObject()
-
-                        writer.name("exportedAtMs").value(System.currentTimeMillis())
-
-                        writer.name("meta")
-                        writeJsonFileOrNull(writer, File(sessionDir, "meta.json"))
-
-                        writer.name("events")
-                        writer.beginArray()
-                        streamJsonlArray(writer, File(sessionDir, "events.jsonl"))
-                        writer.endArray()
-
-                        writer.name("pages")
-                        writer.beginArray()
-                        streamJsonlArray(writer, File(sessionDir, "pages.jsonl"))
-                        writer.endArray()
-
-                        writer.endObject()
-                        writer.flush()
-                    }
-                }
-                zip.closeEntry()
-            }
+            writeExportZipToStream(sessionDir, out)
         } ?: throw IllegalStateException("Failed to open output stream for: $outputUri")
+    }
+
+    fun writeExportZipToStream(sessionDir: File, outputStream: OutputStream) {
+        ZipOutputStream(outputStream).use { zip ->
+            zip.setLevel(6)
+
+            putTextEntry(zip, "README.txt", buildReadmeText())
+            putFileEntryIfExists(zip, File(sessionDir, "meta.json"), "meta.json")
+            putFileEntryIfExists(zip, File(sessionDir, "events.jsonl"), "events.jsonl")
+            putFileEntryIfExists(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl")
+
+            // Also include a single, easy-to-consume JSON.
+            zip.putNextEntry(ZipEntry("export.json"))
+            val nonClosing = NonClosingOutputStream(zip)
+            OutputStreamWriter(nonClosing, Charsets.UTF_8).use { osw ->
+                JsonWriter(osw).use { writer ->
+                    writer.setIndent("  ")
+                    writer.beginObject()
+
+                    writer.name("exportedAtMs").value(System.currentTimeMillis())
+
+                    writer.name("meta")
+                    writeJsonFileOrNull(writer, File(sessionDir, "meta.json"))
+
+                    writer.name("events")
+                    writer.beginArray()
+                    streamJsonlArray(writer, File(sessionDir, "events.jsonl"))
+                    writer.endArray()
+
+                    writer.name("pages")
+                    writer.beginArray()
+                    streamJsonlArray(writer, File(sessionDir, "pages.jsonl"))
+                    writer.endArray()
+
+                    writer.endObject()
+                    writer.flush()
+                }
+            }
+            zip.closeEntry()
+        }
     }
 
     private fun writeJsonFileOrNull(writer: JsonWriter, file: File) {
