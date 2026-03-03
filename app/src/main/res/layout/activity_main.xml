@@ -25,16 +25,15 @@
             <LinearLayout
                 android:id="@+id/buttonsRow"
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
+                android:layout_height="44dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/backButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_skip_previous"
                     android:contentDescription="@string/cd_back" />
@@ -42,9 +41,8 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/forwardButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_skip_next"
                     android:contentDescription="@string/cd_forward" />
@@ -52,9 +50,8 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/reloadButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_refresh"
                     android:contentDescription="@string/cd_reload" />
@@ -62,9 +59,8 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/recordPauseButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_record"
                     android:contentDescription="@string/cd_record_pause" />
@@ -72,9 +68,8 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/stopButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_stop"
                     android:contentDescription="@string/cd_stop"
@@ -84,9 +79,8 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/timeWarpButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:layout_marginEnd="3dp"
                     android:src="@drawable/ic_timer_clock"
                     android:contentDescription="@string/simulate_time" />
@@ -94,14 +88,13 @@
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/modeToggleButton"
                     style="@style/Widget.BSL.ToolbarIconButton"
-                    android:layout_width="0dp"
+                    android:layout_width="44dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
                     android:src="@drawable/ic_text_cursor"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="10dp"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
                     android:scaleType="fitCenter"
                     android:contentDescription="@string/cd_toggle_bar" />
             </LinearLayout>
@@ -125,7 +118,7 @@
         <FrameLayout
             android:id="@+id/urlInputLayout"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="44dp"
             android:visibility="gone">
 
             <androidx.appcompat.widget.AppCompatAutoCompleteTextView
@@ -142,7 +135,7 @@
                 android:maxLines="1"
                 android:overScrollMode="never"
                 android:paddingHorizontal="12dp"
-                android:paddingEnd="72dp"
+                android:paddingEnd="56dp"
                 android:scrollHorizontally="true"
                 android:scrollbars="none"
                 android:singleLine="true"
@@ -152,12 +145,12 @@
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/addressModeToggleButton"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:layout_gravity="end"
                 android:background="@drawable/bg_media_button"
                 android:src="@drawable/ic_toggle_grid"
-                android:padding="10dp"
+                android:padding="8dp"
                 android:scaleType="fitCenter"
                 android:contentDescription="@string/cd_toggle_bar" />
         </FrameLayout>

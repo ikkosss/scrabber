@@ -20,6 +20,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.color.MaterialColors
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportFolderManager
 import com.example.bankscraperlogger.export.ExportWriter
@@ -374,7 +375,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setAddressModeVisible(visible: Boolean) {
         binding.urlInputLayout.visibility = if (visible) View.VISIBLE else View.GONE
-        binding.modeToggleButton.setImageResource(if (visible) R.drawable.ic_toggle_grid else R.drawable.ic_text_cursor)
+        binding.buttonsContainer.visibility = if (visible) View.GONE else View.VISIBLE
 
         val imm = getSystemService(InputMethodManager::class.java)
         if (visible) {
@@ -479,6 +480,7 @@ class MainActivity : AppCompatActivity() {
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
                 binding.recordPauseButton.setImageResource(R.drawable.ic_record)
+                applyRecordingSystemUi()
             }
             LogRepository.RecordingState.RECORDING -> {
                 binding.stopButton.isEnabled = true
@@ -486,6 +488,7 @@ class MainActivity : AppCompatActivity() {
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
                 binding.recordPauseButton.setImageResource(R.drawable.ic_pause)
+                applyRecordingSystemUi()
             }
             LogRepository.RecordingState.PAUSED -> {
                 binding.stopButton.isEnabled = true
@@ -493,8 +496,29 @@ class MainActivity : AppCompatActivity() {
                 binding.recordPauseButton.isEnabled = true
                 binding.recordPauseButton.alpha = 1f
                 binding.recordPauseButton.setImageResource(R.drawable.ic_record)
+                applyRecordingSystemUi()
             }
         }
+    }
+
+    private fun applyRecordingSystemUi() {
+        val lp = window.attributes
+        when (repo.getRecordingState()) {
+            LogRepository.RecordingState.RECORDING -> {
+                window.statusBarColor = getColor(R.color.record_color)
+                lp.screenBrightness = 1.0f
+            }
+            LogRepository.RecordingState.PAUSED -> {
+                window.statusBarColor = getColor(R.color.media_button_stroke)
+                lp.screenBrightness = 0.55f
+            }
+            LogRepository.RecordingState.STOPPED -> {
+                val bg = MaterialColors.getColor(window.decorView, android.R.attr.colorBackground, getColor(R.color.md_theme_dark_background))
+                window.statusBarColor = bg
+                lp.screenBrightness = -1.0f
+            }
+        }
+        window.attributes = lp
     }
 
     private fun showLockOverlay() {
