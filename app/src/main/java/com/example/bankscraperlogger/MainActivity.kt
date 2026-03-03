@@ -156,9 +156,35 @@ class MainActivity : AppCompatActivity() {
                 isUserGesture: Boolean,
                 resultMsg: Message,
             ): Boolean {
-                // Many banking pages use target="_blank"/window.open; keep navigation inside the same WebView.
+                // Many banking pages use target="_blank"/window.open.
+                // Create a temporary WebView to capture the URL, then load it in the main WebView.
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-                transport.webView = view
+                val popup = WebView(this@MainActivity).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
+                            val url = request.url.toString()
+                            view.post { view.loadUrl(url) }
+                            try {
+                                v.stopLoading()
+                                v.destroy()
+                            } catch (_: Throwable) {
+                            }
+                            return true
+                        }
+
+                        override fun onPageStarted(v: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                            view.post { view.loadUrl(url) }
+                            try {
+                                v.stopLoading()
+                                v.destroy()
+                            } catch (_: Throwable) {
+                            }
+                        }
+                    }
+                }
+                transport.webView = popup
                 resultMsg.sendToTarget()
                 return true
             }
