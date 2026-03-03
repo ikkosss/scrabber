@@ -13,7 +13,7 @@ class ZipToFolderExporter(
         val uri: android.net.Uri,
     )
 
-    fun export(sessionDir: File, folder: DocumentFile, bankUrl: String?): Result {
+    fun export(sessionDir: File, folder: DocumentFile, bankUrl: String?, allowedHosts: Set<String>? = null): Result {
         if (!folder.isDirectory) throw IllegalArgumentException("Selected folder is not a directory")
         if (!folder.canWrite()) throw IllegalStateException("No write access to selected folder")
 
@@ -32,7 +32,7 @@ class ZipToFolderExporter(
                 ?: throw IllegalStateException("Failed to create $displayName in chosen folder")
 
             context.contentResolver.openOutputStream(outFile.uri, "w")?.use { out ->
-                exportWriter.writeExportZipToStream(sessionDir, out)
+                exportWriter.writeExportZipToStream(sessionDir, out, allowedHosts = allowedHosts)
             } ?: throw IllegalStateException("Failed to open output stream for ${outFile.uri}")
 
             return Result(displayName = displayName, uri = outFile.uri)

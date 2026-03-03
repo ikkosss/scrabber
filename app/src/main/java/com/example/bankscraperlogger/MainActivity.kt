@@ -23,6 +23,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportFolderManager
 import com.example.bankscraperlogger.export.ExportWriter
+import com.example.bankscraperlogger.export.SessionDomains
 import com.example.bankscraperlogger.export.ZipToFolderExporter
 import com.example.bankscraperlogger.history.HistoryStore
 import com.example.bankscraperlogger.history.HistorySuggestionAdapter
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingZipExportAfterFolderPick: Boolean = false
     private var isLocked: Boolean = false
     private var stopExportOfferHandledSessionId: String? = null
+    private var pendingAllowedHostsForExport: Set<String>? = null
 
     private val pickExportFolderLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -353,9 +355,11 @@ class MainActivity : AppCompatActivity() {
 
         val bankUrl = repo.getMeta()?.initialUrl ?: currentMainUrl
         try {
-            val result = zipToFolderExporter.export(dir, folder, bankUrl)
+            val result = zipToFolderExporter.export(dir, folder, bankUrl, allowedHosts = pendingAllowedHostsForExport)
+            pendingAllowedHostsForExport = null
             toast(getString(R.string.toast_saved, result.displayName))
         } catch (t: Throwable) {
+            pendingAllowedHostsForExport = null
             toast(getString(R.string.toast_export_failed, t.message ?: t.javaClass.simpleName))
         }
     }
@@ -413,10 +417,45 @@ class MainActivity : AppCompatActivity() {
         if (!withPrompt || wasStopped) return
         if (sessionId != null && sessionId == stopExportOfferHandledSessionId) return
         stopExportOfferHandledSessionId = sessionId
+
+        val sessionDir = repo.getLastSessionDir()
+        if (sessionDir == null) return
+
+        Thread {
+            val domains = SessionDomains.collect(sessionDir)
+            runOnUiThread {
+                showDomainExportDialog(domains)
+            }
+        }.start()
+    }
+
+    private fun showDomainExportDialog(domains: List<SessionDomains.DomainCount>) {
+        if (domains.isEmpty()) {
+            // Fallback: export everything.
+            pendingAllowedHostsForExport = null
+            exportZipToChosenFolder()
+            return
+        }
+
+        val labels = domains.map { "${it.host} (${it.count})" }.toTypedArray()
+        val checked = BooleanArray(domains.size) { idx -> idx == 0 } // default: most frequent
+
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.export_after_stop_title))
             .setMessage(getString(R.string.export_after_stop_msg))
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
             .setPositiveButton(getString(R.string.export_now)) { _, _ ->
+                val selectedHosts = domains
+                    .filterIndexed { i, _ -> checked[i] }
+                    .map { it.host }
+                    .toSet()
+                if (selectedHosts.isEmpty()) {
+                    toast(getString(R.string.export_domains_empty))
+                    return@setPositiveButton
+                }
+                pendingAllowedHostsForExport = selectedHosts
                 exportZipToChosenFolder()
             }
             .setNegativeButton(getString(R.string.export_later), null)

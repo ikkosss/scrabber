@@ -12,7 +12,8 @@
     <string name="export_now">Save ZIP</string>
     <string name="export_later">Cancel</string>
     <string name="export_after_stop_title">Recording stopped</string>
-    <string name="export_after_stop_msg">Save the recorded data to a ZIP archive now? If you cancel, you won’t be able to export this session later.</string>
+    <string name="export_after_stop_msg">Select domains to include in the archive. Disable unrelated ones (e.g. search engine).</string>
+    <string name="export_domains_empty">No domains selected</string>
 
     <string name="lock_title">Unlock</string>
     <string name="pin_hint">PIN code</string>

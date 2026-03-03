@@ -12,7 +12,8 @@
     <string name="export_now">Сохранить ZIP</string>
     <string name="export_later">Отмена</string>
     <string name="export_after_stop_title">Запись остановлена</string>
-    <string name="export_after_stop_msg">Сохранить записанные данные в ZIP-архив сейчас? Если отменить, экспорт этой сессии будет недоступен.</string>
+    <string name="export_after_stop_msg">Выберите домены, которые включить в архив. Лишние (например, поисковик) можно отключить.</string>
+    <string name="export_domains_empty">Не выбрано ни одного домена</string>
 
     <string name="lock_title">Разблокировка</string>
     <string name="pin_hint">PIN-код</string>

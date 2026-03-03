@@ -5,6 +5,7 @@ import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.stream.JsonWriter
 import java.io.File
 import java.io.OutputStream
@@ -53,14 +54,19 @@ class ExportWriter {
         } ?: throw IllegalStateException("Failed to open output stream for: $outputUri")
     }
 
-    fun writeExportZipToStream(sessionDir: File, outputStream: OutputStream) {
+    fun writeExportZipToStream(sessionDir: File, outputStream: OutputStream, allowedHosts: Set<String>? = null) {
         ZipOutputStream(outputStream).use { zip ->
             zip.setLevel(6)
 
             putTextEntry(zip, "README.txt", buildReadmeText())
             putFileEntryIfExists(zip, File(sessionDir, "meta.json"), "meta.json")
-            putFileEntryIfExists(zip, File(sessionDir, "events.jsonl"), "events.jsonl")
-            putFileEntryIfExists(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl")
+            if (allowedHosts.isNullOrEmpty()) {
+                putFileEntryIfExists(zip, File(sessionDir, "events.jsonl"), "events.jsonl")
+                putFileEntryIfExists(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl")
+            } else {
+                putFilteredJsonlEntry(zip, File(sessionDir, "events.jsonl"), "events.jsonl", allowedHosts, kind = "events")
+                putFilteredJsonlEntry(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl", allowedHosts, kind = "pages")
+            }
 
             // Also include a single, easy-to-consume JSON.
             zip.putNextEntry(ZipEntry("export.json"))
@@ -77,12 +83,12 @@ class ExportWriter {
 
                     writer.name("events")
                     writer.beginArray()
-                    streamJsonlArray(writer, File(sessionDir, "events.jsonl"))
+                    streamJsonlArray(writer, File(sessionDir, "events.jsonl"), allowedHosts = allowedHosts, kind = "events")
                     writer.endArray()
 
                     writer.name("pages")
                     writer.beginArray()
-                    streamJsonlArray(writer, File(sessionDir, "pages.jsonl"))
+                    streamJsonlArray(writer, File(sessionDir, "pages.jsonl"), allowedHosts = allowedHosts, kind = "pages")
                     writer.endArray()
 
                     writer.endObject()
@@ -113,6 +119,85 @@ class ExportWriter {
             }
         }
     }
+
+    private fun streamJsonlArray(writer: JsonWriter, file: File, allowedHosts: Set<String>?, kind: String) {
+        if (allowedHosts.isNullOrEmpty()) {
+            streamJsonlArray(writer, file)
+            return
+        }
+        if (!file.exists()) return
+        file.bufferedReader(Charsets.UTF_8).use { br ->
+            br.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.isEmpty()) return@forEachLine
+                val element = gson.fromJson(trimmed, JsonElement::class.java)
+                if (shouldInclude(element, allowedHosts, kind)) {
+                    gson.toJson(element, writer)
+                }
+            }
+        }
+    }
+
+    private fun putFilteredJsonlEntry(
+        zip: ZipOutputStream,
+        file: File,
+        entryName: String,
+        allowedHosts: Set<String>,
+        kind: String,
+    ) {
+        if (!file.exists()) return
+        zip.putNextEntry(ZipEntry(entryName))
+        val nonClosing = NonClosingOutputStream(zip)
+        OutputStreamWriter(nonClosing, Charsets.UTF_8).use { osw ->
+            file.bufferedReader(Charsets.UTF_8).use { br ->
+                br.forEachLine { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty()) return@forEachLine
+                    val element = gson.fromJson(trimmed, JsonElement::class.java)
+                    if (shouldInclude(element, allowedHosts, kind)) {
+                        osw.write(gson.toJson(element))
+                        osw.write("\n")
+                    }
+                }
+                osw.flush()
+            }
+        }
+        zip.closeEntry()
+    }
+
+    private fun shouldInclude(element: JsonElement, allowedHosts: Set<String>, kind: String): Boolean {
+        return when (kind) {
+            "pages" -> hostFromJson(element.asJsonObjectOrNull(), "url")?.let { it in allowedHosts } ?: false
+            "events" -> {
+                val obj = element.asJsonObjectOrNull() ?: return true
+                val type = obj["type"]?.asString
+                if (type == "session_start" || type == "session_stop" || type == "session_pause" || type == "session_resume" || type == "external_ip") {
+                    return true
+                }
+                val data = obj["data"]?.asJsonObjectOrNull()
+                val urlHost = hostFromJson(data, "url")
+                val mainHost = hostFromJson(data, "mainPageUrl")
+                (urlHost != null && urlHost in allowedHosts) || (mainHost != null && mainHost in allowedHosts)
+            }
+            else -> true
+        }
+    }
+
+    private fun hostFromJson(obj: JsonObject?, key: String): String? {
+        val raw = obj?.get(key)?.takeIf { !it.isJsonNull }?.asString ?: return null
+        return try {
+            android.net.Uri.parse(raw).host
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun JsonElement.asJsonObjectOrNull(): JsonObject? =
+        try {
+            if (isJsonObject) asJsonObject else null
+        } catch (_: Throwable) {
+            null
+        }
 
     private fun putTextEntry(zip: ZipOutputStream, name: String, text: String) {
         zip.putNextEntry(ZipEntry(name))
