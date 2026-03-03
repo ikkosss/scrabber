@@ -49,6 +49,21 @@ class HistoryStore(context: Context) {
         }
     }
 
+    fun clearHost(host: String): Int {
+        val h = host.trim().lowercase()
+        if (h.isBlank()) return 0
+        synchronized(lock) {
+            val list = load()
+            val kept = list.filterNot { e ->
+                val entryHost = try { android.net.Uri.parse(e.url).host?.lowercase() } catch (_: Throwable) { null }
+                entryHost == h
+            }
+            val removed = list.size - kept.size
+            if (removed > 0) save(kept)
+            return removed
+        }
+    }
+
     private fun load(): List<Entry> {
         val raw = prefs.getString(KEY, null) ?: return emptyList()
         return try {

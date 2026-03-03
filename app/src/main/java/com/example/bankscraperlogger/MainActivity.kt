@@ -8,6 +8,7 @@ import android.util.Patterns
 import android.util.Base64
 import android.view.KeyEvent
 import android.view.View
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
@@ -74,6 +75,11 @@ class MainActivity : AppCompatActivity() {
     )
 
     private val pendingBlobDownloads = ConcurrentHashMap<String, PendingBlobDownload>()
+    private var didLongPressReload = false
+    private val reloadLongPressRunnable = Runnable {
+        didLongPressReload = true
+        clearSiteDataForCurrentHost()
+    }
 
     private val pickExportFolderLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -164,6 +170,9 @@ class MainActivity : AppCompatActivity() {
                 // Global history (for omnibox suggestions), regardless of recording.
                 historyStore.recordVisit(url = url, title = view.title)
 
+                // Patch blob downloads: store blobs passed to URL.createObjectURL so we can export them later.
+                injectBlobHooks(view)
+
                 if (!repo.isRecording()) return
 
                 val cookies = try {
@@ -230,6 +239,24 @@ class MainActivity : AppCompatActivity() {
         }
         binding.reloadButton.setOnClickListener {
             binding.webView.reload()
+        }
+
+        binding.reloadButton.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    didLongPressReload = false
+                    binding.reloadButton.removeCallbacks(reloadLongPressRunnable)
+                    binding.reloadButton.postDelayed(reloadLongPressRunnable, 1200)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    binding.reloadButton.removeCallbacks(reloadLongPressRunnable)
+                    if (didLongPressReload) {
+                        didLongPressReload = false
+                        return@setOnTouchListener true
+                    }
+                }
+            }
+            false
         }
 
         binding.recordPauseButton.setOnClickListener { recordOrPauseOrResume() }
@@ -513,20 +540,21 @@ class MainActivity : AppCompatActivity() {
               const filename = ${gson.toJson(displayName)};
               const MAX = 25 * 1024 * 1024;
               try {
-                fetch(url).then(r => r.blob()).then(blob => {
-                  const size = blob && blob.size ? blob.size : 0;
-                  if (size && size > MAX) throw new Error("Blob too large: " + size);
-                  return new Promise((resolve, reject) => {
-                    const fr = new FileReader();
-                    fr.onerror = () => reject(fr.error || new Error("FileReader error"));
-                    fr.onloadend = () => resolve(fr.result);
-                    fr.readAsDataURL(blob);
+                const getter = window.__bslGetBlobData;
+                const p = (typeof getter === 'function')
+                  ? getter(url)
+                  : fetch(url).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
+                      const fr = new FileReader();
+                      fr.onerror = () => reject(fr.error || new Error("FileReader error"));
+                      fr.onloadend = () => resolve(fr.result);
+                      fr.readAsDataURL(blob);
+                    }));
+                p.then(dataUrl => {
+                    window.BSLDownloadBridge.onBlobData(token, String(dataUrl), filename);
+                  })
+                  .catch(err => {
+                    window.BSLDownloadBridge.onBlobError(token, String(err && err.message ? err.message : err));
                   });
-                }).then(dataUrl => {
-                  window.BSLDownloadBridge.onBlobData(token, String(dataUrl), filename);
-                }).catch(err => {
-                  window.BSLDownloadBridge.onBlobError(token, String(err && err.message ? err.message : err));
-                });
               } catch (e) {
                 window.BSLDownloadBridge.onBlobError(token, String(e && e.message ? e.message : e));
               }
@@ -627,6 +655,81 @@ class MainActivity : AppCompatActivity() {
             .replace("Version/4.0", "")
             .replace(Regex("\\s+"), " ")
             .trim()
+    }
+
+    private fun injectBlobHooks(view: WebView) {
+        // Idempotent: runs on every page finish but patches only once per document.
+        val js = """
+            (function() {
+              try {
+                if (window.__bslBlobPatched) return;
+                window.__bslBlobPatched = true;
+                window.__bslBlobStore = window.__bslBlobStore || new Map();
+                const store = window.__bslBlobStore;
+                const origCreate = URL.createObjectURL;
+                const origRevoke = URL.revokeObjectURL;
+                URL.createObjectURL = function(obj) {
+                  const u = origCreate.call(URL, obj);
+                  try { if (obj instanceof Blob) store.set(u, obj); } catch(e) {}
+                  return u;
+                };
+                URL.revokeObjectURL = function(u) {
+                  try { store.delete(u); } catch(e) {}
+                  return origRevoke.call(URL, u);
+                };
+                window.__bslGetBlobData = function(u) {
+                  return new Promise(function(resolve, reject) {
+                    try {
+                      const b = store.get(u);
+                      if (!b) return reject(new Error("Blob not found"));
+                      const fr = new FileReader();
+                      fr.onerror = () => reject(fr.error || new Error("FileReader error"));
+                      fr.onloadend = () => resolve(fr.result);
+                      fr.readAsDataURL(b);
+                    } catch (e) {
+                      reject(e);
+                    }
+                  });
+                };
+              } catch (e) {}
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(js, null)
+    }
+
+    private fun clearSiteDataForCurrentHost() {
+        val url = currentMainUrl ?: binding.urlEditText.text?.toString()
+        val host = try { Uri.parse(url).host } catch (_: Throwable) { null }
+        if (host.isNullOrBlank()) {
+            toast(getString(R.string.toast_site_clear_failed))
+            return
+        }
+
+        // Clear app omnibox history entries for this host.
+        val removedHistory = historyStore.clearHost(host)
+
+        // Best-effort cookie delete for this host.
+        val cm = CookieManager.getInstance()
+        val cookieStr = try { cm.getCookie("https://$host") } catch (_: Throwable) { null }
+        val names = cookieStr
+            ?.split(';')
+            ?.mapNotNull { it.trim().substringBefore('=', "").takeIf { n -> n.isNotBlank() } }
+            ?.distinct()
+            .orEmpty()
+
+        var removedCookies = 0
+        try {
+            for (name in names) {
+                cm.setCookie("https://$host", "$name=; Max-Age=0; Path=/; Domain=$host")
+                cm.setCookie("https://$host", "$name=; Max-Age=0; Path=/; Domain=.$host")
+                removedCookies++
+            }
+            cm.flush()
+        } catch (_: Throwable) {
+            // ignore
+        }
+
+        toast(getString(R.string.toast_site_cleared, host, removedCookies, removedHistory))
     }
 
     private fun toast(message: String) {

@@ -18,7 +18,6 @@
     <string name="lock_title">Разблокировка</string>
     <string name="pin_hint">PIN-код</string>
     <string name="unlock">Открыть</string>
-    <string name="simulate_time">+1 час (вперёд)</string>
     <string name="security">Безопасность</string>
     <string name="set_pin">Установить / изменить PIN</string>
     <string name="disable_pin">Отключить PIN</string>
@@ -40,5 +39,7 @@
     <string name="toast_pin_disabled">PIN отключён</string>
     <string name="toast_pin_length">PIN должен быть 4–12 цифр</string>
     <string name="toast_pin_set">PIN установлен</string>
+    <string name="toast_site_cleared">%1$s: cookies %2$d, история %3$d очищено</string>
+    <string name="toast_site_clear_failed">Не удалось определить сайт</string>
 </resources>
 

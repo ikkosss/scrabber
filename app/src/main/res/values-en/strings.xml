@@ -18,7 +18,6 @@
     <string name="lock_title">Unlock</string>
     <string name="pin_hint">PIN code</string>
     <string name="unlock">Unlock</string>
-    <string name="simulate_time">+1h (forward)</string>
     <string name="security">Security</string>
     <string name="set_pin">Set / change PIN</string>
     <string name="disable_pin">Disable PIN</string>
@@ -40,5 +39,7 @@
     <string name="toast_pin_disabled">PIN disabled</string>
     <string name="toast_pin_length">PIN must be 4..12 digits</string>
     <string name="toast_pin_set">PIN set</string>
+    <string name="toast_site_cleared">%1$s: cleared cookies %2$d, history %3$d</string>
+    <string name="toast_site_clear_failed">Failed to determine site</string>
 </resources>
 
