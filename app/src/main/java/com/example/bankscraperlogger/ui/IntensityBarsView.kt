@@ -19,10 +19,11 @@ class IntensityBarsView @JvmOverloads constructor(
     }
 
     private var intensity: Float = 0f // 0..1
+    private var phaseOffset: Float = 0f
 
     private val bars = 18
     private val gapPx = dp(2f)
-    private val minBarHeightFactor = 0.15f
+    private val minBarHeightFactor = 0.22f
 
     init {
         context.obtainStyledAttributes(attrs, intArrayOf(android.R.attr.colorAccent)).use {
@@ -33,8 +34,9 @@ class IntensityBarsView @JvmOverloads constructor(
 
     fun setIntensity(value: Float) {
         val clamped = value.coerceIn(0f, 1f)
-        if (clamped == intensity) return
         intensity = clamped
+        phaseOffset += 0.35f + 0.9f * clamped
+        if (phaseOffset > 10000f) phaseOffset -= 10000f
         invalidate()
     }
 
@@ -51,19 +53,19 @@ class IntensityBarsView @JvmOverloads constructor(
         for (i in 0 until bars) {
             val phase = i.toFloat() / max(1, bars - 1)
             val shaped = (minBarHeightFactor + (1f - minBarHeightFactor) * intensity) *
-                (0.55f + 0.45f * wave(phase, intensity))
+                (0.50f + 0.50f * wave(phase, intensity, phaseOffset))
             val barH = min(h, max(1f, h * shaped))
             canvas.drawRoundRect(x, h - barH, x + barW, h, dp(2f), dp(2f), paint)
             x += barW + gapPx
         }
     }
 
-    private fun wave(phase: Float, intensity: Float): Float {
+    private fun wave(phase: Float, intensity: Float, offset: Float): Float {
         // Deterministic pseudo-wave (no random) so it feels like an “equalizer”
         // that responds to intensity but doesn’t flicker uncontrollably.
         val a = 6.28318f
-        val base = kotlin.math.sin(a * (phase * (0.9f + 1.6f * intensity)) + 1.3f * intensity)
-        val mod = kotlin.math.sin(a * (phase * (2.1f + 2.7f * intensity)) + 2.1f)
+        val base = kotlin.math.sin(a * (phase * (0.9f + 1.6f * intensity)) + 0.08f * offset + 1.3f * intensity)
+        val mod = kotlin.math.sin(a * (phase * (2.1f + 2.7f * intensity)) + 0.05f * offset + 2.1f)
         return (0.6f * base + 0.4f * mod + 1f) / 2f
     }
 
