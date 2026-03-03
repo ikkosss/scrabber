@@ -228,9 +228,8 @@ class MainActivity : AppCompatActivity() {
             binding.webView.reload()
         }
 
-        binding.startButton.setOnClickListener { startRecording() }
-        binding.pauseResumeButton.setOnClickListener { pauseOrResume() }
-        binding.stopButton.setOnClickListener { stopRecording() }
+        binding.recordPauseButton.setOnClickListener { recordOrPauseOrResume() }
+        binding.stopButton.setOnClickListener { stopRecording(withPrompt = true) }
         binding.timeWarpButton.setOnClickListener {
             if (!appLock.isEnabled()) {
                 toast(getString(R.string.pin_not_set))
@@ -408,18 +407,15 @@ class MainActivity : AppCompatActivity() {
         setAddressModeVisible(!isAddressVisible)
     }
 
-    private fun startRecording() {
-        if (repo.getRecordingState() != LogRepository.RecordingState.STOPPED) return
-        val ua = binding.webView.settings.userAgentString ?: "unknown"
-        val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
-        repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
-        toast("Recording started")
-        fetchAndStoreExternalIp()
-        syncRecordingUi()
-    }
-
-    private fun pauseOrResume() {
+    private fun recordOrPauseOrResume() {
         when (repo.getRecordingState()) {
+            LogRepository.RecordingState.STOPPED -> {
+                val ua = binding.webView.settings.userAgentString ?: "unknown"
+                val initial = currentMainUrl ?: binding.urlEditText.text?.toString()
+                repo.startNewSession(userAgent = ua, initialUrl = initial?.takeIf { it.isNotBlank() })
+                toast("Recording started")
+                fetchAndStoreExternalIp()
+            }
             LogRepository.RecordingState.RECORDING -> {
                 repo.pauseSession()
                 toast("Paused")
@@ -428,45 +424,49 @@ class MainActivity : AppCompatActivity() {
                 repo.resumeSession()
                 toast("Resumed")
             }
-            else -> return
         }
         syncRecordingUi()
     }
 
-    private fun stopRecording() {
+    private fun stopRecording(withPrompt: Boolean) {
+        val wasStopped = repo.getRecordingState() == LogRepository.RecordingState.STOPPED
         repo.stopSession()
-        toast("Stopped")
+        if (!wasStopped) toast("Stopped")
         syncRecordingUi()
+
+        if (!withPrompt || wasStopped) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.export_after_stop_title))
+            .setMessage(getString(R.string.export_after_stop_msg))
+            .setPositiveButton(getString(R.string.export_now)) { _, _ ->
+                exportZipToChosenFolder()
+            }
+            .setNegativeButton(getString(R.string.export_later), null)
+            .show()
     }
 
     private fun syncRecordingUi() {
         when (repo.getRecordingState()) {
             LogRepository.RecordingState.STOPPED -> {
-                binding.startButton.isEnabled = true
-                binding.startButton.alpha = 1f
-                binding.pauseResumeButton.isEnabled = false
-                binding.pauseResumeButton.alpha = 0.45f
                 binding.stopButton.isEnabled = false
                 binding.stopButton.alpha = 0.45f
-                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
+                binding.recordPauseButton.isEnabled = true
+                binding.recordPauseButton.alpha = 1f
+                binding.recordPauseButton.setImageResource(R.drawable.ic_record_dot)
             }
             LogRepository.RecordingState.RECORDING -> {
-                binding.startButton.isEnabled = false
-                binding.startButton.alpha = 0.45f
-                binding.pauseResumeButton.isEnabled = true
-                binding.pauseResumeButton.alpha = 1f
                 binding.stopButton.isEnabled = true
                 binding.stopButton.alpha = 1f
-                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_pause)
+                binding.recordPauseButton.isEnabled = true
+                binding.recordPauseButton.alpha = 1f
+                binding.recordPauseButton.setImageResource(R.drawable.ic_pause_red)
             }
             LogRepository.RecordingState.PAUSED -> {
-                binding.startButton.isEnabled = false
-                binding.startButton.alpha = 0.45f
-                binding.pauseResumeButton.isEnabled = true
-                binding.pauseResumeButton.alpha = 1f
                 binding.stopButton.isEnabled = true
                 binding.stopButton.alpha = 1f
-                binding.pauseResumeButton.setImageResource(android.R.drawable.ic_media_play)
+                binding.recordPauseButton.isEnabled = true
+                binding.recordPauseButton.alpha = 1f
+                binding.recordPauseButton.setImageResource(R.drawable.ic_record_dot)
             }
         }
     }

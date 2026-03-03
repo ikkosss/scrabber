@@ -77,24 +77,14 @@
                 android:src="@android:drawable/ic_popup_sync" />
 
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/startButton"
+                android:id="@+id/recordPauseButton"
                 style="@style/Widget.BSL.ToolbarIconButton"
                 android:layout_width="0dp"
                 android:layout_height="40dp"
                 android:layout_weight="1"
-                android:contentDescription="@string/cd_start"
-                android:src="@android:drawable/ic_media_play" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/pauseResumeButton"
-                style="@style/Widget.BSL.ToolbarIconButton"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:contentDescription="@string/cd_pause_resume"
-                android:enabled="false"
-                android:alpha="0.45"
-                android:src="@android:drawable/ic_media_pause" />
+                android:contentDescription="@string/cd_record_pause"
+                android:src="@drawable/ic_record_dot"
+                android:tint="@null" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/stopButton"

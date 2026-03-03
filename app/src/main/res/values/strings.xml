@@ -19,6 +19,11 @@
     <string name="cd_start">Start recording</string>
     <string name="cd_pause_resume">Pause/Resume recording</string>
     <string name="cd_stop">Stop recording</string>
+    <string name="cd_record_pause">Record / Pause / Resume</string>
+    <string name="export_now">Export now</string>
+    <string name="export_later">Later</string>
+    <string name="export_after_stop_title">Recording stopped</string>
+    <string name="export_after_stop_msg">Export the last session now?</string>
     <string name="lock_title">Unlock</string>
     <string name="pin_hint">PIN code</string>
     <string name="unlock">Unlock</string>
