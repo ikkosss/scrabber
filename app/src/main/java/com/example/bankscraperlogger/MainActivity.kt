@@ -22,6 +22,8 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import android.os.Message
+import android.webkit.WebStorage
 import com.google.android.material.color.MaterialColors
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportFolderManager
@@ -147,6 +149,19 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 // Keep minimal UI; title is stored on HTML snapshot capture.
             }
+
+            override fun onCreateWindow(
+                view: WebView,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message,
+            ): Boolean {
+                // Many banking pages use target="_blank"/window.open; keep navigation inside the same WebView.
+                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                transport.webView = view
+                resultMsg.sendToTarget()
+                return true
+            }
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
@@ -161,6 +176,7 @@ class MainActivity : AppCompatActivity() {
                 currentMainUrl = url
                 binding.urlEditText.setText(url)
                 if (repo.isRecording()) repo.logVisitedUrl(url, "onPageStarted")
+                injectBlobHooks(view)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -538,18 +554,12 @@ class MainActivity : AppCompatActivity() {
               const token = ${gson.toJson(token)};
               const url = ${gson.toJson(blobUrl)};
               const filename = ${gson.toJson(displayName)};
-              const MAX = 25 * 1024 * 1024;
               try {
                 const getter = window.__bslGetBlobData;
-                const p = (typeof getter === 'function')
-                  ? getter(url)
-                  : fetch(url).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
-                      const fr = new FileReader();
-                      fr.onerror = () => reject(fr.error || new Error("FileReader error"));
-                      fr.onloadend = () => resolve(fr.result);
-                      fr.readAsDataURL(blob);
-                    }));
-                p.then(dataUrl => {
+                if (typeof getter !== 'function') {
+                  throw new Error("Blob capture not ready");
+                }
+                getter(url).then(dataUrl => {
                     window.BSLDownloadBridge.onBlobData(token, String(dataUrl), filename);
                   })
                   .catch(err => {
@@ -664,23 +674,49 @@ class MainActivity : AppCompatActivity() {
               try {
                 if (window.__bslBlobPatched) return;
                 window.__bslBlobPatched = true;
-                window.__bslBlobStore = window.__bslBlobStore || new Map();
-                const store = window.__bslBlobStore;
-                const origCreate = URL.createObjectURL;
-                const origRevoke = URL.revokeObjectURL;
-                URL.createObjectURL = function(obj) {
-                  const u = origCreate.call(URL, obj);
-                  try { if (obj instanceof Blob) store.set(u, obj); } catch(e) {}
-                  return u;
-                };
-                URL.revokeObjectURL = function(u) {
-                  try { store.delete(u); } catch(e) {}
-                  return origRevoke.call(URL, u);
-                };
+                function patchWin(w) {
+                  try {
+                    if (!w || w.__bslBlobStore) return;
+                    w.__bslBlobStore = new Map();
+                    const store = w.__bslBlobStore;
+                    const origCreate = w.URL.createObjectURL;
+                    const origRevoke = w.URL.revokeObjectURL;
+                    w.URL.createObjectURL = function(obj) {
+                      const u = origCreate.call(w.URL, obj);
+                      try { if (obj instanceof w.Blob) store.set(u, obj); } catch(e) {}
+                      return u;
+                    };
+                    w.URL.revokeObjectURL = function(u) {
+                      try { store.delete(u); } catch(e) {}
+                      return origRevoke.call(w.URL, u);
+                    };
+                  } catch(e) {}
+                }
+
+                patchWin(window);
+
+                function findBlob(u) {
+                  try {
+                    if (window.__bslBlobStore && window.__bslBlobStore.has(u)) {
+                      return window.__bslBlobStore.get(u);
+                    }
+                  } catch(e) {}
+                  try {
+                    for (let i=0; i<window.frames.length; i++) {
+                      const fr = window.frames[i];
+                      try { patchWin(fr); } catch(e) {}
+                      try {
+                        if (fr.__bslBlobStore && fr.__bslBlobStore.has(u)) return fr.__bslBlobStore.get(u);
+                      } catch(e) {}
+                    }
+                  } catch(e) {}
+                  return null;
+                }
+
                 window.__bslGetBlobData = function(u) {
                   return new Promise(function(resolve, reject) {
                     try {
-                      const b = store.get(u);
+                      const b = findBlob(u);
                       if (!b) return reject(new Error("Blob not found"));
                       const fr = new FileReader();
                       fr.onerror = () => reject(fr.error || new Error("FileReader error"));
@@ -691,6 +727,18 @@ class MainActivity : AppCompatActivity() {
                     }
                   });
                 };
+
+                // Patch future iframes.
+                try {
+                  const mo = new MutationObserver(function() {
+                    try {
+                      for (let i=0; i<window.frames.length; i++) {
+                        try { patchWin(window.frames[i]); } catch(e) {}
+                      }
+                    } catch(e) {}
+                  });
+                  mo.observe(document.documentElement || document, { childList: true, subtree: true });
+                } catch(e) {}
               } catch (e) {}
             })();
         """.trimIndent()
@@ -699,7 +747,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearSiteDataForCurrentHost() {
         val url = currentMainUrl ?: binding.urlEditText.text?.toString()
-        val host = try { Uri.parse(url).host } catch (_: Throwable) { null }
+        val parsed = try { Uri.parse(url) } catch (_: Throwable) { null }
+        val host = parsed?.host
         if (host.isNullOrBlank()) {
             toast(getString(R.string.toast_site_clear_failed))
             return
@@ -710,7 +759,8 @@ class MainActivity : AppCompatActivity() {
 
         // Best-effort cookie delete for this host.
         val cm = CookieManager.getInstance()
-        val cookieStr = try { cm.getCookie("https://$host") } catch (_: Throwable) { null }
+        val baseUrl = (parsed?.scheme?.takeIf { it.isNotBlank() } ?: "https") + "://" + host + (if (parsed?.port != null && parsed.port != -1) ":${parsed.port}" else "")
+        val cookieStr = try { cm.getCookie(baseUrl) } catch (_: Throwable) { null }
         val names = cookieStr
             ?.split(';')
             ?.mapNotNull { it.trim().substringBefore('=', "").takeIf { n -> n.isNotBlank() } }
@@ -719,9 +769,31 @@ class MainActivity : AppCompatActivity() {
 
         var removedCookies = 0
         try {
+            val path = parsed?.path.orEmpty().ifBlank { "/" }
+            val paths = buildList {
+                add("/")
+                val parts = path.split('/').filter { it.isNotBlank() }
+                var cur = ""
+                for (p in parts) {
+                    cur += "/$p"
+                    add(cur)
+                }
+            }.distinct()
+
+            fun expire(name: String, domain: String?, p: String, scheme: String) {
+                val u = "$scheme://$host"
+                val domainAttr = domain?.let { "; Domain=$it" }.orEmpty()
+                cm.setCookie(u, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=$p$domainAttr")
+            }
+
             for (name in names) {
-                cm.setCookie("https://$host", "$name=; Max-Age=0; Path=/; Domain=$host")
-                cm.setCookie("https://$host", "$name=; Max-Age=0; Path=/; Domain=.$host")
+                for (p in paths) {
+                    for (scheme in listOf("https", "http")) {
+                        expire(name, null, p, scheme)
+                        expire(name, host, p, scheme)
+                        expire(name, ".$host", p, scheme)
+                    }
+                }
                 removedCookies++
             }
             cm.flush()
@@ -729,7 +801,47 @@ class MainActivity : AppCompatActivity() {
             // ignore
         }
 
+        // Clear WebStorage for this origin and JS storages for current page.
+        try {
+            WebStorage.getInstance().deleteOrigin(baseUrl)
+        } catch (_: Throwable) {
+        }
+        try {
+            binding.webView.evaluateJavascript(
+                """
+                (function(){
+                  try { localStorage && localStorage.clear(); } catch(e){}
+                  try { sessionStorage && sessionStorage.clear(); } catch(e){}
+                  try {
+                    if (window.indexedDB && indexedDB.databases) {
+                      indexedDB.databases().then(dbs => dbs.forEach(db => { try { indexedDB.deleteDatabase(db.name); } catch(e){} }));
+                    }
+                  } catch(e){}
+                  try {
+                    if (window.caches && caches.keys) {
+                      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+                    }
+                  } catch(e){}
+                  try {
+                    if (navigator && navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+                      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => { try { r.unregister(); } catch(e){} }));
+                    }
+                  } catch(e){}
+                  return true;
+                })();
+                """.trimIndent(),
+                null,
+            )
+        } catch (_: Throwable) {
+        }
+        try {
+            binding.webView.clearCache(true)
+        } catch (_: Throwable) {
+        }
+
         toast(getString(R.string.toast_site_cleared, host, removedCookies, removedHistory))
+        // Reload to ensure user sees logged-out state.
+        binding.webView.postDelayed({ binding.webView.reload() }, 250)
     }
 
     private fun toast(message: String) {
