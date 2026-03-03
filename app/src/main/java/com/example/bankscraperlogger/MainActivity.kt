@@ -15,14 +15,19 @@ import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
+import android.webkit.ConsoleMessage
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ClientCertRequest
+import android.net.http.SslError
+import android.webkit.SslErrorHandler
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import android.webkit.WebStorage
+import android.security.KeyChain
 import com.google.android.material.color.MaterialColors
 import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportFolderManager
@@ -148,6 +153,20 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 // Keep minimal UI; title is stored on HTML snapshot capture.
             }
+
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                // Best-effort diagnostics for sites that fail to load in WebView.
+                if (repo.isRecording()) {
+                    repo.logConsoleMessage(
+                        message = consoleMessage.message(),
+                        sourceId = consoleMessage.sourceId(),
+                        lineNumber = consoleMessage.lineNumber(),
+                        level = consoleMessage.messageLevel().name,
+                        pageUrl = currentMainUrl,
+                    )
+                }
+                return false
+            }
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
@@ -167,6 +186,55 @@ class MainActivity : AppCompatActivity() {
                 binding.urlEditText.setText(url)
                 if (repo.isRecording()) repo.logVisitedUrl(url, "shouldOverrideUrlLoading")
                 return false
+            }
+
+            override fun onReceivedClientCertRequest(view: WebView, request: ClientCertRequest) {
+                // Some banks require mutual TLS client certificates; Chrome shows a picker.
+                // WebView cancels by default unless we handle it.
+                try {
+                    KeyChain.choosePrivateKeyAlias(
+                        this@MainActivity,
+                        { alias ->
+                            if (alias.isNullOrBlank()) {
+                                request.cancel()
+                                return@choosePrivateKeyAlias
+                            }
+                            Thread {
+                                try {
+                                    val pk = KeyChain.getPrivateKey(this@MainActivity, alias)
+                                    val chain = KeyChain.getCertificateChain(this@MainActivity, alias)
+                                    runOnUiThread {
+                                        if (pk != null && chain != null && chain.isNotEmpty()) {
+                                            request.proceed(pk, chain)
+                                        } else {
+                                            request.cancel()
+                                        }
+                                    }
+                                } catch (_: Throwable) {
+                                    runOnUiThread { request.cancel() }
+                                }
+                            }.start()
+                        },
+                        request.keyTypes,
+                        request.principals,
+                        request.host,
+                        request.port,
+                        null,
+                    )
+                } catch (_: Throwable) {
+                    request.cancel()
+                }
+            }
+
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                // Do not bypass SSL errors; but surface as diagnostics.
+                if (repo.isRecording()) {
+                    repo.logSslError(
+                        primaryError = error.primaryError,
+                        url = error.url,
+                    )
+                }
+                handler.cancel()
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {

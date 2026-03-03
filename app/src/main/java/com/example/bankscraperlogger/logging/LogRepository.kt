@@ -169,6 +169,37 @@ class LogRepository(private val context: Context) {
         )
     }
 
+    fun logConsoleMessage(
+        message: String,
+        sourceId: String?,
+        lineNumber: Int,
+        level: String,
+        pageUrl: String?,
+    ) {
+        if (!isRecording()) return
+        appendEvent(
+            type = "console",
+            data = jsonObjectOf(
+                "level" to level,
+                "message" to message,
+                "sourceId" to sourceId,
+                "lineNumber" to lineNumber,
+                "pageUrl" to pageUrl,
+            ),
+        )
+    }
+
+    fun logSslError(primaryError: Int, url: String?) {
+        if (!isRecording()) return
+        appendEvent(
+            type = "ssl_error",
+            data = jsonObjectOf(
+                "primaryError" to primaryError,
+                "url" to url,
+            ),
+        )
+    }
+
     fun logPageHtml(url: String, title: String?, html: String, cookies: String?) {
         if (!isRecording()) return
         val dir = sessionDir ?: return
