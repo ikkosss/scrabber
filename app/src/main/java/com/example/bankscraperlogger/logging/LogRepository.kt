@@ -185,6 +185,48 @@ class LogRepository(private val context: Context) {
         }
     }
 
+    fun logDownloadStarted(
+        url: String,
+        filename: String,
+        mimeType: String?,
+        contentLength: Long,
+        userAgent: String?,
+        referer: String?,
+    ) {
+        if (!isRecording()) return
+        appendEvent(
+            type = "download_start",
+            data = jsonObjectOf(
+                "url" to url,
+                "filename" to filename,
+                "mimeType" to mimeType,
+                "contentLength" to contentLength,
+                "userAgent" to userAgent,
+                "referer" to referer,
+            ),
+        )
+    }
+
+    fun logDownloadFinished(
+        url: String,
+        filename: String?,
+        relativePath: String?,
+        bytes: Long,
+        error: String?,
+    ) {
+        if (!isRecording() && !isPaused()) return
+        appendEvent(
+            type = "download_finish",
+            data = jsonObjectOf(
+                "url" to url,
+                "filename" to filename,
+                "relativePath" to relativePath,
+                "bytes" to bytes,
+                "error" to error,
+            ),
+        )
+    }
+
     private fun appendEvent(type: String, data: JsonElement?) {
         val dir = sessionDir ?: return
         val envelope = EventEnvelope(

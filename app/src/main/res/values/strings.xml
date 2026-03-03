@@ -9,10 +9,10 @@
     <string name="cd_record_pause">Запись / Пауза / Продолжить</string>
     <string name="cd_toggle_bar">Переключить адрес / кнопки</string>
 
-    <string name="export_now">Сохранить ZIP</string>
+    <string name="export_now">Сохранить</string>
     <string name="export_later">Отмена</string>
     <string name="export_after_stop_title">Запись остановлена</string>
-    <string name="export_after_stop_msg">Выберите домены, которые включить в архив. Лишние (например, поисковик) можно отключить.</string>
+    <string name="export_after_stop_msg">Сохранить данные для %1$s?</string>
     <string name="export_domains_empty">Не выбрано ни одного домена</string>
 
     <string name="lock_title">Разблокировка</string>
@@ -31,6 +31,8 @@
     <string name="toast_choose_export_folder">Выберите папку для экспорта…</string>
     <string name="toast_saved">Сохранено: %1$s</string>
     <string name="toast_export_failed">Ошибка экспорта: %1$s</string>
+    <string name="toast_download_ok">Файл скачан: %1$s</string>
+    <string name="toast_download_failed">Ошибка скачивания: %1$s</string>
     <string name="toast_recording_started">Запись началась</string>
     <string name="toast_paused">Пауза</string>
     <string name="toast_resumed">Продолжение</string>

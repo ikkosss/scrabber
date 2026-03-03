@@ -55,11 +55,6 @@ class AppLockStore(context: Context) {
         prefs.edit().putLong(KEY_TIMEOUT_MS, timeoutMs).apply()
     }
 
-    fun simulateForward(hours: Int, nowMs: Long = System.currentTimeMillis()) {
-        val delta = hours * 60L * 60L * 1000L
-        prefs.edit().putLong(KEY_LAST_BACKGROUND_MS, nowMs - delta).apply()
-    }
-
     private fun getPinHash(): String? = prefs.getString(KEY_HASH, null)
 
     private fun sha256(input: String): String {

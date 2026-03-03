@@ -4,14 +4,13 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Patterns
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
+import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -35,6 +34,8 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
@@ -81,30 +82,6 @@ class MainActivity : AppCompatActivity() {
                 exportZipToChosenFolder()
             }
         }
-
-    private val intensityHandler = Handler(Looper.getMainLooper())
-    private var intensityEma = 0f
-
-    private val intensityTicker = object : Runnable {
-        override fun run() {
-            val target = if (repo.isRecording()) {
-                val sample = repo.drainActivitySample()
-                // Weight pages higher (HTML snapshots are the “heavy” writes).
-                val score = sample.events * 1.0 + sample.pages * 6.0 + (sample.bytes / 2048.0)
-                val dyn = (score / 14.0).toFloat().coerceIn(0f, 1f)
-                // Base movement while collecting, even if traffic is low.
-                (0.22f + 0.78f * dyn).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-
-            // Smooth to avoid jitter.
-            intensityEma = (0.70f * intensityEma + 0.30f * target).coerceIn(0f, 1f)
-            binding.intensityView.setIntensity(intensityEma)
-
-            intensityHandler.postDelayed(this, 120)
-        }
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -191,6 +168,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        binding.webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+            if (url.isNullOrBlank()) return@setDownloadListener
+            startDownload(
+                url = url,
+                userAgent = userAgent,
+                contentDisposition = contentDisposition,
+                mimeType = mimeType,
+                contentLength = contentLength,
+            )
+        }
+
         binding.urlEditText.setOnEditorActionListener { _, actionId, event ->
             val isGo = actionId == EditorInfo.IME_ACTION_GO ||
                 (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
@@ -222,14 +210,6 @@ class MainActivity : AppCompatActivity() {
 
         binding.recordPauseButton.setOnClickListener { recordOrPauseOrResume() }
         binding.stopButton.setOnClickListener { stopRecording(withPrompt = true) }
-        binding.timeWarpButton.setOnClickListener {
-            if (!appLock.isEnabled()) {
-                toast(getString(R.string.pin_not_set))
-            } else {
-                appLock.simulateForward(hours = 1)
-                showLockOverlay()
-            }
-        }
 
         binding.modeToggleButton.setOnClickListener { toggleMode() }
         binding.modeToggleButton.setOnLongClickListener {
@@ -254,8 +234,6 @@ class MainActivity : AppCompatActivity() {
                 it.width = btnW * 2 + gapPx
             }
         }
-
-        intensityHandler.post(intensityTicker)
     }
 
     override fun onStop() {
@@ -271,7 +249,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        intensityHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 
@@ -342,6 +319,108 @@ class MainActivity : AppCompatActivity() {
                 // Ignore.
             }
         }.start()
+    }
+
+    private fun startDownload(
+        url: String,
+        userAgent: String?,
+        contentDisposition: String?,
+        mimeType: String?,
+        contentLength: Long,
+    ) {
+        val guessedName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        val cookieHeader = try { CookieManager.getInstance().getCookie(url) } catch (_: Throwable) { null }
+
+        val inRecording = repo.isRecording()
+        val sessionDir = if (inRecording) repo.getActiveSessionDir() else null
+        val outFile: File? = if (sessionDir != null) {
+            val downloadsDir = File(sessionDir, "downloads").apply { mkdirs() }
+            File(
+                downloadsDir,
+                "${SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())}_${sanitizeFilename(guessedName)}",
+            )
+        } else {
+            val dir = File(cacheDir, "bsl_downloads").apply { mkdirs() }
+            File(dir, sanitizeFilename(guessedName))
+        }
+
+        if (inRecording && outFile != null) {
+            repo.logDownloadStarted(
+                url = url,
+                filename = outFile.name,
+                mimeType = mimeType,
+                contentLength = contentLength,
+                userAgent = userAgent,
+                referer = currentMainUrl,
+            )
+        }
+
+        Thread {
+            var bytes: Long = 0
+            var error: String? = null
+            try {
+                val req = Request.Builder()
+                    .url(url)
+                    .get()
+                    .apply {
+                        if (!userAgent.isNullOrBlank()) header("User-Agent", userAgent)
+                        if (!cookieHeader.isNullOrBlank()) header("Cookie", cookieHeader)
+                        if (!currentMainUrl.isNullOrBlank()) header("Referer", currentMainUrl!!)
+                    }
+                    .build()
+
+                okHttp.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    val body = resp.body ?: throw IOException("Empty body")
+                    outFile?.parentFile?.mkdirs()
+                    FileOutputStream(outFile).use { fos ->
+                        body.byteStream().use { input ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n <= 0) break
+                                fos.write(buf, 0, n)
+                                bytes += n.toLong()
+                            }
+                        }
+                        fos.flush()
+                    }
+                }
+            } catch (t: Throwable) {
+                error = t.message ?: t.javaClass.simpleName
+                try {
+                    outFile?.delete()
+                } catch (_: Throwable) {
+                }
+            }
+
+            if (inRecording) {
+                repo.logDownloadFinished(
+                    url = url,
+                    filename = outFile?.name,
+                    relativePath = outFile?.let { "downloads/${it.name}" },
+                    bytes = bytes,
+                    error = error,
+                )
+            }
+
+            runOnUiThread {
+                if (error == null) {
+                    toast(getString(R.string.toast_download_ok, outFile?.name ?: guessedName))
+                } else {
+                    toast(getString(R.string.toast_download_failed, error))
+                }
+            }
+        }.start()
+    }
+
+    private fun sanitizeFilename(name: String): String {
+        return name
+            .trim()
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .replace(Regex("\\s+"), " ")
+            .take(120)
+            .ifBlank { "download.bin" }
     }
 
     private fun toast(message: String) {
@@ -428,44 +507,24 @@ class MainActivity : AppCompatActivity() {
         if (sessionId != null && sessionId == stopExportOfferHandledSessionId) return
         stopExportOfferHandledSessionId = sessionId
 
-        val sessionDir = repo.getLastSessionDir()
-        if (sessionDir == null) return
+        val sessionDir = repo.getLastSessionDir() ?: return
 
         Thread {
-            val domains = SessionDomains.collect(sessionDir)
+            val dominant = SessionDomains.dominantHostByTime(sessionDir)
+                ?: SessionDomains.collect(sessionDir).firstOrNull()?.let { SessionDomains.DomainTime(it.host, 0L) }
             runOnUiThread {
-                showDomainExportDialog(domains)
+                pendingAllowedHostsForExport = dominant?.let { setOf(it.host) }
+                showExportAfterStopDialog()
             }
         }.start()
     }
 
-    private fun showDomainExportDialog(domains: List<SessionDomains.DomainCount>) {
-        if (domains.isEmpty()) {
-            // Fallback: export everything.
-            pendingAllowedHostsForExport = null
-            exportZipToChosenFolder()
-            return
-        }
-
-        val labels = domains.map { "${it.host} (${it.count})" }.toTypedArray()
-        val checked = BooleanArray(domains.size) { idx -> idx == 0 } // default: most frequent
-
+    private fun showExportAfterStopDialog() {
+        val domainLabel = pendingAllowedHostsForExport?.firstOrNull() ?: "?"
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.export_after_stop_title))
-            .setMessage(getString(R.string.export_after_stop_msg))
-            .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
-                checked[which] = isChecked
-            }
+            .setMessage(getString(R.string.export_after_stop_msg, domainLabel))
             .setPositiveButton(getString(R.string.export_now)) { _, _ ->
-                val selectedHosts = domains
-                    .filterIndexed { i, _ -> checked[i] }
-                    .map { it.host }
-                    .toSet()
-                if (selectedHosts.isEmpty()) {
-                    toast(getString(R.string.export_domains_empty))
-                    return@setPositiveButton
-                }
-                pendingAllowedHostsForExport = selectedHosts
                 exportZipToChosenFolder()
             }
             .setNegativeButton(getString(R.string.export_later), null)
@@ -547,17 +606,12 @@ class MainActivity : AppCompatActivity() {
                 binding.pinInputLayout.error = getString(R.string.wrong_pin)
             }
         }
-
-        binding.simulateTimeButton.setOnClickListener {
-            appLock.simulateForward(hours = 1)
-            showLockOverlay()
-        }
     }
 
     private fun showSecurityMenu() {
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.security))
-            .setItems(arrayOf(getString(R.string.set_pin), getString(R.string.disable_pin), getString(R.string.lock_now), getString(R.string.simulate_time))) { _, which ->
+            .setItems(arrayOf(getString(R.string.set_pin), getString(R.string.disable_pin), getString(R.string.lock_now))) { _, which ->
                 when (which) {
                     0 -> showSetPinDialog()
                     1 -> {
@@ -568,14 +622,6 @@ class MainActivity : AppCompatActivity() {
                         if (!appLock.isEnabled()) {
                             toast(getString(R.string.pin_not_set))
                         } else {
-                            showLockOverlay()
-                        }
-                    }
-                    3 -> {
-                        if (!appLock.isEnabled()) {
-                            toast(getString(R.string.pin_not_set))
-                        } else {
-                            appLock.simulateForward(hours = 1)
                             showLockOverlay()
                         }
                     }

@@ -68,6 +68,9 @@ class ExportWriter {
                 putFilteredJsonlEntry(zip, File(sessionDir, "pages.jsonl"), "pages.jsonl", allowedHosts, kind = "pages")
             }
 
+            // Attach downloaded files captured during the session (if any).
+            putDirectoryEntriesIfExists(zip, File(sessionDir, "downloads"), zipPrefix = "downloads")
+
             // Also include a single, easy-to-consume JSON.
             zip.putNextEntry(ZipEntry("export.json"))
             val nonClosing = NonClosingOutputStream(zip)
@@ -171,6 +174,9 @@ class ExportWriter {
             "events" -> {
                 val obj = element.asJsonObjectOrNull() ?: return true
                 val type = obj["type"]?.asString
+                if (type == "download_start" || type == "download_finish") {
+                    return true
+                }
                 if (type == "session_start" || type == "session_stop" || type == "session_pause" || type == "session_resume" || type == "external_ip") {
                     return true
                 }
@@ -212,6 +218,26 @@ class ExportWriter {
             input.copyTo(zip)
         }
         zip.closeEntry()
+    }
+
+    private fun putDirectoryEntriesIfExists(zip: ZipOutputStream, dir: File, zipPrefix: String) {
+        if (!dir.exists() || !dir.isDirectory) return
+        val basePath = dir.canonicalFile.toPath()
+        dir.walkTopDown()
+            .filter { it.isFile }
+            .forEach { file ->
+                val rel = try {
+                    basePath.relativize(file.canonicalFile.toPath()).toString().replace('\\', '/')
+                } catch (_: Throwable) {
+                    file.name
+                }
+                val entryName = "$zipPrefix/$rel"
+                zip.putNextEntry(ZipEntry(entryName))
+                file.inputStream().use { input ->
+                    input.copyTo(zip)
+                }
+                zip.closeEntry()
+            }
     }
 
     private fun buildReadmeText(): String {
