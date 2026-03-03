@@ -55,7 +55,7 @@ class AppLockStore(context: Context) {
         prefs.edit().putLong(KEY_TIMEOUT_MS, timeoutMs).apply()
     }
 
-    fun simulateAway(hours: Int, nowMs: Long = System.currentTimeMillis()) {
+    fun simulateForward(hours: Int, nowMs: Long = System.currentTimeMillis()) {
         val delta = hours * 60L * 60L * 1000L
         prefs.edit().putLong(KEY_LAST_BACKGROUND_MS, nowMs - delta).apply()
     }

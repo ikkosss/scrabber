@@ -24,6 +24,8 @@ import com.example.bankscraperlogger.databinding.ActivityMainBinding
 import com.example.bankscraperlogger.export.ExportFolderManager
 import com.example.bankscraperlogger.export.ExportWriter
 import com.example.bankscraperlogger.export.ZipToFolderExporter
+import com.example.bankscraperlogger.history.HistoryStore
+import com.example.bankscraperlogger.history.HistorySuggestionAdapter
 import com.example.bankscraperlogger.logging.LogRepository
 import com.example.bankscraperlogger.security.AppLockStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -48,6 +50,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exportFolderManager: ExportFolderManager
     private lateinit var zipToFolderExporter: ZipToFolderExporter
     private lateinit var appLock: AppLockStore
+    private lateinit var historyStore: HistoryStore
+    private lateinit var historyAdapter: HistorySuggestionAdapter
 
     private var currentMainUrl: String? = null
     private var pendingZipExportAfterFolderPick: Boolean = false
@@ -120,6 +124,8 @@ class MainActivity : AppCompatActivity() {
         exportFolderManager = ExportFolderManager(this)
         zipToFolderExporter = ZipToFolderExporter(this, exportWriter)
         appLock = AppLockStore(this)
+        historyStore = HistoryStore(this)
+        historyAdapter = HistorySuggestionAdapter(this, historyStore)
         setupLockUi()
 
         WebView.setWebContentsDebuggingEnabled(true)
@@ -162,6 +168,9 @@ class MainActivity : AppCompatActivity() {
                 binding.urlEditText.setText(url)
                 currentMainUrl = url
 
+                // Global history (for omnibox suggestions), regardless of recording.
+                historyStore.recordVisit(url = url, title = view.title)
+
                 if (!repo.isRecording()) return
 
                 val cookies = try {
@@ -201,6 +210,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        binding.urlEditText.setAdapter(historyAdapter)
+        binding.urlEditText.setOnItemClickListener { _, _, position, _ ->
+            val s = historyAdapter.getItem(position) ?: return@setOnItemClickListener
+            binding.urlEditText.setText(s.url)
+            binding.webView.loadUrl(s.url)
+            setAddressModeVisible(false)
+        }
+
         binding.backButton.setOnClickListener {
             if (binding.webView.canGoBack()) binding.webView.goBack()
         }
@@ -218,7 +235,7 @@ class MainActivity : AppCompatActivity() {
             if (!appLock.isEnabled()) {
                 toast(getString(R.string.pin_not_set))
             } else {
-                appLock.simulateAway(hours = 1)
+                appLock.simulateForward(hours = 1)
                 showLockOverlay()
             }
         }
@@ -482,7 +499,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.simulateTimeButton.setOnClickListener {
-            appLock.simulateAway(hours = 1)
+            appLock.simulateForward(hours = 1)
             showLockOverlay()
         }
     }
@@ -508,7 +525,7 @@ class MainActivity : AppCompatActivity() {
                         if (!appLock.isEnabled()) {
                             toast(getString(R.string.pin_not_set))
                         } else {
-                            appLock.simulateAway(hours = 1)
+                            appLock.simulateForward(hours = 1)
                             showLockOverlay()
                         }
                     }

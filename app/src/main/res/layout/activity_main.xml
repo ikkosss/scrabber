@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="40dp">
 
-            <androidx.appcompat.widget.AppCompatEditText
+            <androidx.appcompat.widget.AppCompatAutoCompleteTextView
                 android:id="@+id/urlEditText"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -36,6 +36,8 @@
                 android:scrollHorizontally="true"
                 android:scrollbars="none"
                 android:singleLine="true"
+                android:completionThreshold="1"
+                android:dropDownHeight="wrap_content"
                 android:textSize="14sp" />
         </FrameLayout>
 
@@ -133,7 +135,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
         android:contentDescription="@string/cd_toggle_bar"
-        android:src="@android:drawable/ic_menu_search"
+        android:src="@drawable/ic_toggle_omnibox"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
